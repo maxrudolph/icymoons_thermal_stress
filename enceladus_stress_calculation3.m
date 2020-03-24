@@ -4,7 +4,7 @@ clear;
 close all;
 
 % Numerical parameters
-nr = 200; % number of grid points
+nr = 400; % number of grid points
 relaxation_parameter=.01; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
@@ -22,7 +22,7 @@ Rc = 1.60e5;             % core radius (m)
 E = 5e9;        % shear modulus of ice (Pa)
 nu = 0.35;      % Poisson ratio of ice (-)
 beta_w = 4e-10; % Compressibility of water (1/Pa)
-alpha_l = 0*1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+alpha_l = 1e-4*0; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
 rho_i=917;      % density of ice (kg/m^3)
 rho_w=1000;     % density of water (kg/m^3)
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
@@ -40,7 +40,7 @@ fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
 % set end time and grid resolution
 t_end = 1e6*seconds_in_year;
-dt = 100*seconds_in_year; % time step in seconds
+dt = 1e3*seconds_in_year; % time step in seconds
 plot_interval = t_end/10;
 
 % set up the grid
@@ -54,6 +54,7 @@ er_last = zeros(nr,1); % strains
 et_last = zeros(nr,1);
 ur_last = zeros(nr,1);      % displacement
 z_last = 0; % total amount of thickening
+Pex_last = 0; % ocean excess pressure
 
 % Set up plot
 figure(1);
@@ -77,13 +78,36 @@ last_plot_time = 0;
 time=0;
 while time < t_end
     % In each timestep, we do the following
-    % 1. Solve the heat equation using an implicit method
-    % 2. Calculate the amount of basal freeze-on
+    % 1. Calculate the amount of basal freeze-on and advance the mesh
+    % 2. Solve the heat equation using an implicit method
     % 3. Solve for sigma_r
     % 4. Calculate sigma_t
     % 5. Calculate the radial displacements u(r)
     
-    % 1. form discrete operators and solve the heat equation
+    % 1. Calculate basal freeze-on and interpolate old solution onto new mesh
+    % calculate heat flux
+    Tg = Tb-(T_last(2)-Tb);
+    dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
+    qb = -k*dTdr_b_last;
+    % thickening would be dx/dt = qb/(L*rho_i)
+    delta_rb = dt*qb/Lf/rho_i;
+    z = z_last + delta_rb;
+    
+    % calculate new ocean pressure (Manga and Wang 2007, equation 5)
+    Pex_pred = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
+    
+    % re-mesh onto new grid
+    new_grid_r = linspace(Ri-z,Ro,nr);
+    interp_r = [new_grid_r(1) grid_r];
+    T_last = interp1(interp_r,[Tb; T_last],new_grid_r)';
+    sigma_r_last = interp1(interp_r,[sigma_r_last(1); sigma_r_last],new_grid_r)';% note imposes sigma_r=sigma_t at base
+    sigma_t_last = interp1(interp_r,[sigma_t_last(1); sigma_t_last],new_grid_r)';
+    er_last = interp1(interp_r,[er_last(1); er_last],new_grid_r)';
+    et_last = interp1(interp_r,[et_last(1); et_last],new_grid_r)';
+    ur_last = interp1(interp_r,[ur_last(1); ur_last],new_grid_r)';
+    grid_r = new_grid_r; % end interpolation step
+    
+    % 2. form discrete operators and solve the heat equation
     L = zeros(nr,nr);
     R = zeros(nr,1);
     for i=1:nr
@@ -103,55 +127,39 @@ while time < t_end
         kA = k;% thermal conductivities
         kB = k;
         dr = rA-rB;
-        coef_plus = -kA*rA^2/r^2/drp/dr;
-        coef_center = rho_i*Cp/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;
-        coef_minus = -kB*rB^2/r^2/drm/dr;
-        R(i) = rho_i*Cp/dt*T_last(i) + H;
-        L(i,i) =  coef_center;
+        coef_plus   = -kA*rA^2/r^2/drp/dr;
+        coef_center =  rho_i*Cp/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;
+        coef_minus  = -kB*rB^2/r^2/drm/dr;
+        
         if( i==1 )
-            L(i,i+1) = coef_plus-coef_minus;
-            R(i) = R(i) - 2*Tb*coef_minus;
+            L(i,i) =  coef_center;
+            %             L(i,i+1) = coef_plus-coef_minus;
+            %             R(i) = R(i) - 2*Tb*coef_minus;
+            R(i) = coef_center*Tb;
         elseif i==nr
-            L(i,i-1) = coef_minus-coef_plus;
-            R(i) = R(i) - 2*Ts*coef_plus;
+            L(i,i) =  coef_center;
+            %             L(i,i-1) = coef_minus-coef_plus;
+            %             R(i) = R(i) - 2*Ts*coef_plus;
+            R(i) = coef_center*Ts;
         else
+            L(i,i) =  coef_center;
             L(i,i-1) = coef_minus;
             L(i,i+1) = coef_plus;
+            R(i) = rho_i*Cp/dt*T_last(i) + H;
         end
     end
     T = L\R;
     
-    % 2. Calculate thickening
-    % basal heat flux
-    qb = -k*(T(2)-T(1))/(grid_r(2)-grid_r(1)); % W/m^2
-    % thickening would be dx/dt = qb/(L*rho_i)
-    delta_rb = dt*qb/Lf/rho_i;
-    z = z_last + delta_rb;
-    %     z=z_last;
-    % mass removal from ocean
-    delta_m = dt*qb/Lf;
-    % calculate new ocean pressure (Manga and Wang 2007, equation 5)
-    Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
-    
-    % re-mesh onto new grid
-    new_grid_r = linspace(Ri-z,Ro,nr);
-    interp_r = [new_grid_r(1) grid_r];
-    T = interp1(interp_r,[Tb; T],new_grid_r)';
-    T_last = interp1(interp_r,[Tb; T_last],new_grid_r)';
-    sigma_r_last = interp1(interp_r,[sigma_r_last(1); sigma_r_last],new_grid_r)';% note imposes sigma_r=sigma_t at base
-    sigma_t_last = interp1(interp_r,[sigma_t_last(1); sigma_t_last],new_grid_r)';
-    er_last = interp1(interp_r,[er_last(1); er_last],new_grid_r)';
-    et_last = interp1(interp_r,[et_last(1); et_last],new_grid_r)';
-    ur_last = interp1(interp_r,[ur_last(1); ur_last],new_grid_r)';
-    grid_r = new_grid_r; % end interpolation step
-    
-    % calculate d/dr(Tdot)
+    %Compute d(Tdot)/dr
     Tdot = (T-T_last)/dt;
+    dTdr_b = (T(2)-T(1))/(grid_r(2)-grid_r(1));
+    Tdot(1) = delta_rb*dTdr_b/dt; % this is an approximation to the Eulerian cooling rate at the ocean-ice interface
+    
     dTdotdr = zeros(nr,1);
     for i=2:nr-1
-        dTdotdr(i) = (Tdot(i+1)-Tdot(i))/(grid_r(i+1)-grid_r(i));
+        dTdotdr(i) = (Tdot(i+1)-Tdot(i-1))/(grid_r(i+1)-grid_r(i-1));
     end
-    dTdotdr(1) = (Tdot(2)-Tdot(1))/(grid_r(i+1)-grid_r(i));
+    dTdotdr(1) = (Tdot(2)-Tdot(1))/(grid_r(2)-grid_r(1));
     dTdotdr(nr) = (Tdot(nr)-Tdot(nr-1))/(grid_r(nr)-grid_r(nr-1));
     
     % 3. Nonlinear loop over pressure.
@@ -174,13 +182,6 @@ while time < t_end
         R2 = zeros(nr,1); % contributions to RHS terms
         % set ocean pressure
         P = -Pex;
-        %     if time == 0
-        %         P=0;
-        %         dPdt = 0;
-        %     else
-        %         P=1e6;
-        %         dPdt = 0;
-        %     end
         
         for i=1:nr
             if i==1
@@ -197,26 +198,29 @@ while time < t_end
             rB = grid_r(i)-drm/2;   % half a cell -
             drc = rA-rB;
             this_mu = mu( T(i) ); % viscosity
-            % M1 - coefficients of dsigma_r/dt
-            const1 = (2-nu)/E; % coefficient on d/dr term
-            const2 = (1-nu)/E; % coefficient on d(r/2 d/dr)/dr term
-            coef_a = rA/2/drp/drc;
-            coef_b = rB/2/drm/drc;
-            coef_plus   =1/dt*(  const1/(drp+drm)    + const2*coef_a);
-            coef_center =1/dt*(                      -const2*coef_a - const2*coef_b);
-            coef_minus  =1/dt*( -const1/(drp+drm)    + const2*coef_b);
-            if i==1
-                M1(i,i)   = coef_center;
-                M1(i,i+1) = coef_plus-coef_minus;
-                R(i) = R(i) - 2*coef_minus*P;
-            elseif i==nr
-                M1(i,i-1) = coef_minus-coef_plus;
-                M1(i,i)   = coef_center;
-                R(i) = R(i) - 2*coef_plus*0;
-            else
-                M1(i,i-1) = coef_minus;
-                M1(i,i)   = coef_center;
-                M1(i,i+1) = coef_plus;
+            if(1 || this_mu/E > dt/10 ) % this will remove the elastic response...
+                
+                % M1 - coefficients of dsigma_r/dt
+                const1 = (2-nu)/E; % coefficient on d/dr term
+                const2 = (1-nu)/E; % coefficient on d(r/2 d/dr)/dr term
+                coef_a = rA/2/drp/drc;
+                coef_b = rB/2/drm/drc;
+                coef_plus   =1/dt*(  const1/(drp+drm)    + const2*coef_a);
+                coef_center =1/dt*(                      -const2*coef_a - const2*coef_b);
+                coef_minus  =1/dt*( -const1/(drp+drm)    + const2*coef_b);
+                if i==1
+                    %                 M1(i,i)   = coef_center;
+                    %                 M1(i,i+1) = coef_plus-coef_minus;
+                    %                 R(i) = R(i) - 2*coef_minus*P;
+                elseif i==nr
+                    M1(i,i-1) = coef_minus-coef_plus;
+                    M1(i,i)   = coef_center;
+                    R(i) = R(i) - 2*coef_plus*0;
+                else
+                    M1(i,i-1) = coef_minus;
+                    M1(i,i)   = coef_center;
+                    M1(i,i+1) = coef_plus;
+                end
             end
             % M2 - coefficients of sigma_r
             if i==nr
@@ -252,13 +256,17 @@ while time < t_end
             %         includes the coupling to the energy equation - Tdot needs
             %         to be updated
         end
+        
         LHS = (M1+M2);
         R1term = M1*sigma_r_last; % this represents terms involving dsigma/dr at previous timestep
         RHS = (R+R1term);
         
-        %         LHS(1,:) = 0;
-        %         LHS(1,1) = abs(LHS(2,2));
-        %         RHS(1) = P*LHS(1,1);
+        LHS(1,:) = 0;
+        LHS(1,1) = abs(LHS(2,2));
+        RHS(1) = P*LHS(1,1);
+        LHS(nr,:) = 0;
+        LHS(nr,nr) = abs(LHS(nr-1,nr-1));
+        RHS(nr) = LHS(nr,nr)*0;
         sigma_r = LHS\RHS;
         
         % 4. calculate the tangential stress sigma_t
@@ -284,13 +292,10 @@ while time < t_end
         % 5. Calculate the strains
         sigma_tD =  grid_r'/6.*dsrdr;     %deviatoric stresses, from Hillier and Squyres (1991) equations A8-9
         sigma_rD = -grid_r'/3.*dsrdr;
-        % fully relax deviatoric stresses where maxwell time is much
-        % shorter than timestep
-        mask = 10*tmaxwell < dt;
-        %         sigma_tD(mask) = 0;
-        %         sigma_rD(mask) = 0;
         
         dT = T-T_last;
+        dT(1) = delta_rb*dTdr_b;
+        
         dsigma_t = sigma_t - sigma_t_last;
         dsigma_r = sigma_r - sigma_r_last;
         
