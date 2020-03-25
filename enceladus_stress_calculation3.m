@@ -5,11 +5,11 @@ close all;
 
 % Numerical parameters
 nr = 400; % number of grid points
-relaxation_parameter=.01; % used in nonlinear loop.
+relaxation_parameter=.05; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
 % Physical constants
-seconds_in_year = 3.15e7;
+seconds_in_year = 3.1558e7;
 R=8.314e-3;     % in kJ/mol/K
 % Boundary conditions and internal heating
 H=0; % internal heating rate.
@@ -20,10 +20,10 @@ Ri = 2.52e5-3e4;         % inner radius of ice shell (m)
 Rc = 1.60e5;             % core radius (m)
 % Elastic and Viscous properties
 E = 5e9;        % shear modulus of ice (Pa)
-nu = 0.35;      % Poisson ratio of ice (-)
+nu = 0.3;      % Poisson ratio of ice (-)
 beta_w = 4e-10; % Compressibility of water (1/Pa)
 alpha_l = 1e-4*0; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
-rho_i=917;      % density of ice (kg/m^3)
+rho_i=900;      % density of ice (kg/m^3)
 rho_w=1000;     % density of water (kg/m^3)
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
 mub=1e15;       % basal viscosity (Pa-s)
@@ -39,8 +39,8 @@ k=kappa*rho_i*Cp;
 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
 % set end time and grid resolution
-t_end = 1e6*seconds_in_year;
-dt = 1e3*seconds_in_year; % time step in seconds
+t_end = 1e7*seconds_in_year;
+dt = 1e4*seconds_in_year; % time step in seconds
 plot_interval = t_end/10;
 
 % set up the grid
@@ -54,7 +54,7 @@ er_last = zeros(nr,1); % strains
 et_last = zeros(nr,1);
 ur_last = zeros(nr,1);      % displacement
 z_last = 0; % total amount of thickening
-Pex_last = 0; % ocean excess pressure
+Pex_last = 0; %initial overpressure
 
 % Set up plot
 figure(1);
@@ -171,128 +171,20 @@ while time < t_end
     % calculated displacement;
     for iter=1:maxiter
         if iter>1
-            Pex = Pex + 0.01*(Pex_post-Pex);
+            Pex = Pex + relaxation_parameter*(Pex_post-Pex);
         else
             Pex = Pex_pred;
         end
-        % 3a. Assemble and solve equations for radial stress
-        M1 = zeros(nr,nr); % coefficients on (dsigma/dt)
-        M2 = zeros(nr,nr); % coefficients on (sigma_r)
-        R = zeros(nr,1);
-        R2 = zeros(nr,1); % contributions to RHS terms
-        % set ocean pressure
-        P = -Pex;
         
-        for i=1:nr
-            if i==1
-                drm = grid_r(i+1)-grid_r(i);
-            else
-                drm = grid_r(i) - grid_r(i-1);
-            end
-            if i==nr
-                drp = grid_r(i)   - grid_r(i-1);
-            else
-                drp = grid_r(i+1) - grid_r(i);
-            end
-            rA = grid_r(i)+drp/2; % half a cell +
-            rB = grid_r(i)-drm/2;   % half a cell -
-            drc = rA-rB;
-            this_mu = mu( T(i) ); % viscosity
-            if(1 || this_mu/E > dt/10 ) % this will remove the elastic response...
-                
-                % M1 - coefficients of dsigma_r/dt
-                const1 = (2-nu)/E; % coefficient on d/dr term
-                const2 = (1-nu)/E; % coefficient on d(r/2 d/dr)/dr term
-                coef_a = rA/2/drp/drc;
-                coef_b = rB/2/drm/drc;
-                coef_plus   =1/dt*(  const1/(drp+drm)    + const2*coef_a);
-                coef_center =1/dt*(                      -const2*coef_a - const2*coef_b);
-                coef_minus  =1/dt*( -const1/(drp+drm)    + const2*coef_b);
-                if i==1
-                    %                 M1(i,i)   = coef_center;
-                    %                 M1(i,i+1) = coef_plus-coef_minus;
-                    %                 R(i) = R(i) - 2*coef_minus*P;
-                elseif i==nr
-                    M1(i,i-1) = coef_minus-coef_plus;
-                    M1(i,i)   = coef_center;
-                    R(i) = R(i) - 2*coef_plus*0;
-                else
-                    M1(i,i-1) = coef_minus;
-                    M1(i,i)   = coef_center;
-                    M1(i,i+1) = coef_plus;
-                end
-            end
-            % M2 - coefficients of sigma_r
-            if i==nr
-                TA = T(i);
-            else
-                TA = (T(i+1)+T(i))/2;
-            end
-            if i==1
-                TB = T(i);
-            else
-                TB = (T(i-1)+T(i))/2;
-            end
-            mu_A = mu(TA); % viscosity halfway between i,i+1
-            mu_B = mu(TB);
-            coef_plus   = 1/(4*this_mu)/(drp+drm) + rA/12/mu_A/drp/drc;
-            coef_center =                         -rA/12/mu_A/drp/drc - rB/12/mu_B/drm/drc;
-            coef_minus  =-1/(4*this_mu)/(drp+drm) + rB/12/mu_B/drm/drc;
-            if i==1
-                M2(i,i)   = coef_center;
-                M2(i,i+1) = coef_plus-coef_minus;
-                R(i) = R(i) - 2*coef_minus*P;
-            elseif i==nr
-                M2(i,i-1) = coef_minus-coef_plus;
-                M2(i,i)   = coef_center;
-                R(i) = R(i) - 2*coef_plus*0; % surface sigma_r = 0
-            else
-                M2(i,i-1) = coef_minus;
-                M2(i,i)   = coef_center;
-                M2(i,i+1) = coef_plus;
-            end
-            R(i) = R(i) + alpha_l*dTdotdr(i);
-            %         R(i) = R(i)+alpha_l*(Tdot(i+1)-Tdot(i))/2/drc; % this term
-            %         includes the coupling to the energy equation - Tdot needs
-            %         to be updated
-        end
-        
-        LHS = (M1+M2);
-        R1term = M1*sigma_r_last; % this represents terms involving dsigma/dr at previous timestep
-        RHS = (R+R1term);
-        
-        LHS(1,:) = 0;
-        LHS(1,1) = abs(LHS(2,2));
-        RHS(1) = P*LHS(1,1);
-        LHS(nr,:) = 0;
-        LHS(nr,nr) = abs(LHS(nr-1,nr-1));
-        RHS(nr) = LHS(nr,nr)*0;
-        sigma_r = LHS\RHS;
-        
-        % 4. calculate the tangential stress sigma_t
-        % first, calculate dsr/dr
-        dsrdr = zeros(size(sigma_r));
-        for i=2:nr-1
-            dr = grid_r(i+1)-grid_r(i-1);
-            dsrdr(i) = (sigma_r(i+1)-sigma_r(i-1))/dr;
-        end
-        sigma_g = P - (sigma_r(2) - P);
-        dsrdr(1) =  (sigma_r(2)-sigma_g)/2/(grid_r(2)-grid_r(1)); % special formula using ghost value
-        sigma_g = 0 - (sigma_r(nr-1) - 0);
-        dsrdr(nr) = (sigma_g-sigma_r(nr-1))/2/(grid_r(nr)-grid_r(nr-1));
-        
-        sigma_t = sigma_r+(grid_r'/2).*dsrdr;
         % calculate viscosity at each node
         mu_node = zeros(nr,1);
         for i=1:nr
             mu_node(i) = mu(T(i));
         end
-        tmaxwell = mu_node/E;
         
-        % 5. Calculate the strains
-        sigma_tD =  grid_r'/6.*dsrdr;     %deviatoric stresses, from Hillier and Squyres (1991) equations A8-9
-        sigma_rD = -grid_r'/3.*dsrdr;
-        
+        [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
+               
+        % 5. Calculate the strains        
         dT = T-T_last;
         dT(1) = delta_rb*dTdr_b;
         
@@ -306,7 +198,7 @@ while time < t_end
         ur = grid_r'.*et; %radial displacement
         % re-calculate excess pressure using new uplift
         Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
-        fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
+         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
         
         % check for convergence
         if abs( Pex_post-Pex )/abs(Pex) < 1e-2
@@ -326,6 +218,7 @@ while time < t_end
     et_last = et;
     z_last = z;
     ur_last = ur;
+    Pex_last = Pex;
     
     time = time + dt;
     if( time-last_plot_time > plot_interval)
