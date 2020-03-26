@@ -220,12 +220,14 @@ while time < t_end
     
 
     Tdot = (T-T_last)/dt;
+    dTdr_b = (T(2)-T(1))/(grid_r(2)-grid_r(1));
+    Tdot(1) = delta_rb*dTdr_b/dt; % this is an approximation to the Eulerian cooling rate at the ocean-ice interface
     
     dTdotdr = zeros(nr,1);
     for i=2:nr-1
-        dTdotdr(i) = (Tdot(i+1)-Tdot(i))/(grid_r(i+1)-grid_r(i));
+        dTdotdr(i) = (Tdot(i+1)-Tdot(i-1))/(grid_r(i+1)-grid_r(i-1));
     end
-    dTdotdr(1) = (Tdot(2)-Tdot(1))/(grid_r(i+1)-grid_r(i));
+    dTdotdr(1) = (Tdot(2)-Tdot(1))/(grid_r(2)-grid_r(1));
     dTdotdr(nr) = (Tdot(nr)-Tdot(nr-1))/(grid_r(nr)-grid_r(nr-1));
     
     % 3. Nonlinear loop over pressure.
@@ -266,6 +268,7 @@ while time < t_end
     er_last = er;
     et_last = et;
     z_last = z;
+    ur_last = ur;
     Pex_last = Pex;
     
     time = time + dt;

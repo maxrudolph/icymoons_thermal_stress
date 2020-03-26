@@ -28,7 +28,6 @@ rho_w=1000;     % density of water (kg/m^3)
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
 mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
-% mu=@(T) 1e99;
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
 Lf = 334*1000; % latent heat of fusion (J/kg)
@@ -70,8 +69,8 @@ hf2=figure();
 plot_times = [0.0 0.8 1.6 3.2 6.4 12 24]*1e6*seconds_in_year; iplot=2;
 hf=figure(2);
 subplot(1,4,1); % sigma_r and sigma_t
-h=plot(sigma_r_last,grid_r); hold on;
-plot(sigma_t_last,grid_r,'--','Color',h.Color);
+h=plot(sigma_r_last,Ro-grid_r); hold on;
+plot(sigma_r_last,Ro-grid_r,'--','Color',h.Color);
 % h=legend('\sigma_r','\sigma_t','Interpreter','tex'); h.AutoUpdate=false;
 title('Stress (Pa)','Interpreter','tex');
 ylabel('r (m)');
@@ -115,7 +114,6 @@ last_store = time; isave = isave+1;
 
 
 while time < t_end
-%     dt = times(itime+1)-times(itime); itime = itime+1;
     % In each timestep, we do the following
     % 1. Calculate the amount of basal freeze-on and advance the mesh
     % 2. Solve the heat equation using an implicit method
@@ -194,7 +192,7 @@ while time < t_end
         dsigma_r = sigma_r - sigma_r_last;
         
         de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
-        de_r = 1/E*(dsigma_r-2*nu*dsigma_t)                +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
+        de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
         er = er_last + de_r;
         et = et_last + de_t;
         ur = grid_r'.*et; %radial displacement
@@ -249,7 +247,6 @@ while time < t_end
         
         last_plot_time = time;
         drawnow();
-        last_plot_time = time;
     end
     if (time-last_store >= save_interval || time >= t_end)
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
@@ -261,15 +258,15 @@ end
 for i=1:length(plot_times)
     labels{i} = sprintf('%.1f',plot_times(i)/seconds_in_year/1e6);
 end
-figure( fig1a.h ); 
+figure( fig1a.h );
 axis(fig1a.ax(1));
-legend(labels);
+legend(labels,'Location','southeast');
 
 
 %% Nimmo's figure 1b
 figure(fig1a.h);
 labels = {};
-for i=1:length(save_depths);
+for i=1:length(save_depths)
     labels{i} = sprintf('%.1f km',save_depths(i)/1000);
 end
 subplot(2,1,2);
