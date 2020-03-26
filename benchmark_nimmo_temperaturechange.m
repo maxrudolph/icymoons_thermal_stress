@@ -49,6 +49,10 @@ initial_cooling_age = cooling_age(initial_thickness);
 zm = @(t) 2*lam1*sqrt(kappa*t);
 dTdt = @(z,t) -(Tb-Ts)/erf(lam1)*exp(-z.^2/4/kappa/t).*z/(2*sqrt(pi*kappa*t^3));
 stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts
+% If solving the energy equation, we need the right value of L
+% corresponding to lam1 = 0.65
+Lf = exp(-lam1^2)/lam1/erf(lam1) * Cp*(Tb-Ts)/sqrt(pi);% Turcotte and Schubert Equation 4.141
+
 
 % calculate maxwell time at 100, 270
 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
@@ -183,18 +187,74 @@ while time < t_end
     
     % 2. Calculate thickening
     % basal heat flux
-%     qb = -k*(T(2)-T(1))/(grid_r(2)-grid_r(1)); % W/m^2
+    %     qb = -k*(T(2)-T(1))/(grid_r(2)-grid_r(1)); % W/m^2
     % thickening would be dx/dt = qb/(L*rho_i)
-%     delta_rb = dt*qb/Lf/rho_i;
-%     z = z_last + delta_rb;
-
+    %     delta_rb = dt*qb/Lf/rho_i;
+    %     z = z_last + delta_rb;
+    
     % calculate the timestep
-    delta = Inf;
-    dt=dtmax*2;
-    while abs(delta) > (grid_r(2)-grid_r(1))/2 && dt >= dtmin
-        dt = dt/2;
-        new_thickness = zm(initial_cooling_age+time+dt);
-        delta = new_thickness - (Ro-grid_r(1));
+    if( use_analytic_temperature )
+        delta = Inf;
+        dt=dtmax*2;
+        while abs(delta) > (grid_r(2)-grid_r(1))/2 && dt >= dtmin
+            dt = dt/2;
+            new_thickness = zm(initial_cooling_age+time+dt);
+            delta = new_thickness - (Ro-grid_r(1));
+        end
+        fprintf('Timestep %e elapsed time %e\n',dt,time+dt);
+        z=new_thickness-initial_thickness;
+        delta_rb = new_thickness-initial_thickness;
+        f = (1-2*initial_thickness/Ro);
+        delta_rho = (rho_w-rho_i);
+        surface_uplift = (delta_rb)*(delta_rho)/rho_w*f/(1+(f*(delta_rho)/rho_w));
+        
+        % calculate new ocean pressure (Manga and Wang 2007, equation 5)
+        %     Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1));% ur_last because we don't yet know the uplift
+        Pex_pred = surface_uplift*E/(1-nu)*2/Ro^2*(new_thickness/4); % last term assumes elastic thickness ~1/4 total thickness
+        % re-mesh onto new grid
+        new_grid_r = linspace(Ri-delta_rb,Ro,nr);
+        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
+        grid_r = new_grid_r; % end interpolation step
+        
+        % calculate d/dr(Tdot)
+        %     Tdot = (T-T_last)/dt;
+        %     Tdot = zeros(size(T_last));
+        %     Tdot(:) = dTdt(Ro-new_grid_r,initial_cooling_age+time+dt);
+        %     T = T_last + Tdot*dt;
+        T = stefan_T( Ro-new_grid_r',initial_cooling_age+time+dt);
+    else
+        Tg = Tb-(T_last(2)-Tb);
+        dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
+        qb = -k*dTdr_b_last;
+        
+        % determine the timestep
+        dt = dtmax;
+        if abs(qb/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
+            dt = (grid_r(2)-grid_r(1))/2/(qb/Lf/rho_i);
+        end
+        if dt < dtmin
+            dt = dtmin;
+        end
+        % thickening would be dx/dt = qb/(L*rho_i)
+        delta_rb = dt*qb/Lf/rho_i;
+        new_thickness = Ro-grid_r(1)+delta_rb;
+        z=new_thickness-initial_thickness;
+        delta_rb = z;
+        f = (1-2*initial_thickness/Ro);
+        delta_rho = (rho_w-rho_i);
+        surface_uplift = (delta_rb)*(delta_rho)/rho_w*f/(1+(f*(delta_rho)/rho_w));
+        
+        % calculate new ocean pressure (Manga and Wang 2007, equation 5)
+        %     Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1));% ur_last because we don't yet know the uplift
+        Pex_pred = surface_uplift*E/(1-nu)*2/Ro^2*(new_thickness/4); % last term assumes elastic thickness ~1/4 total thickness
+        % re-mesh onto new grid
+        new_grid_r = linspace(Ri-z,Ro,nr);
+        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
+        grid_r = new_grid_r; % end interpolation step
+        
+        % 2. form discrete operators and solve the heat equation
+        T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt);
+        
     end
     fprintf('Timestep %e elapsed time %e\n',dt,time+dt);
     z=new_thickness-initial_thickness;
@@ -242,15 +302,15 @@ while time < t_end
         for i=1:nr
             mu_node(i) = mu(T(i));
         end
-        [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt); 
-                       
+        [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
+        
         dT = T-T_last;
         
         dsigma_t = sigma_t - sigma_t_last;
         dsigma_r = sigma_r - sigma_r_last;
         
         de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
-        de_r = 1/E*(dsigma_r-2*nu*dsigma_t)                +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
+        de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
         er = er_last + de_r;
         et = et_last + de_t;
         ur = grid_r'.*et; %radial displacement
@@ -298,22 +358,22 @@ while time < t_end
     if (time-last_store >= save_interval || time >= t_end)
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         time_store(isave) = time;
-        last_store = time; isave = isave+1;       
+        last_store = time; isave = isave+1;
     end
 end
 %% add legends
 for i=1:length(plot_times)
     labels{i} = sprintf('%.1f',plot_times(i)/seconds_in_year/1e6);
 end
-figure( fig1a.h ); 
+figure( fig1a.h );
 axis(fig1a.ax(1));
-legend(labels);
+legend(labels,'Location','southeast');
 
 
 %% Nimmo's figure 1b
 figure(fig1a.h);
 labels = {};
-for i=1:length(save_depths);
+for i=1:length(save_depths)
     labels{i} = sprintf('%.1f km',save_depths(i)/1000);
 end
 subplot(2,1,2);

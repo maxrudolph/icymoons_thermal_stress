@@ -9,6 +9,8 @@
 clear;
 close all;
 
+use_analytic_temperature = true; % whether to solve the energy equation or use an analytic solution (true)
+
 % Numerical parameters
 nr = 101; % number of grid points
 relaxation_parameter=.05; % used in nonlinear loop.
@@ -37,7 +39,7 @@ mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
-Lf = 334*1000; % latent heat of fusion (J/kg)
+% Lf = 334*1000; % latent heat of fusion (J/kg)
 kappa = 1e-6;% m/s/s
 k=kappa*rho_i*Cp;
 
@@ -49,6 +51,10 @@ initial_cooling_age = cooling_age(initial_thickness);
 zm = @(t) 2*lam1*sqrt(kappa*t);
 dTdt = @(z,t) -(Tb-Ts)/erf(lam1)*exp(-z.^2/4/kappa/t).*z/(2*sqrt(pi*kappa*t^3));
 stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts
+% If solving the energy equation, we need the right value of L
+% corresponding to lam1 = 0.65
+Lf = exp(-lam1^2)/lam1/erf(lam1) * Cp*(Tb-Ts)/sqrt(pi);% Turcotte and Schubert Equation 4.141
+
 
 % calculate maxwell time at 100, 270
 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
@@ -144,44 +150,6 @@ while time < t_end
     % 4. Calculate sigma_t
     % 5. Calculate the radial displacements u(r)
     
-    % 1. form discrete operators and solve the heat equation
-    %     L = zeros(nr,nr);
-    %     R = zeros(nr,1);
-    %     for i=1:nr
-    %         r = grid_r(i);
-    %         if i==1
-    %             drm = grid_r(i+1)-grid_r(i);
-    %         else
-    %             drm = grid_r(i)-grid_r(i-1);
-    %         end
-    %         if i==nr
-    %             drp = drm;
-    %         else
-    %             drp = grid_r(i+1)-grid_r(i);
-    %         end
-    %         rA = r + drp/2;
-    %         rB = r - drm/2;
-    %         kA = k;% thermal conductivities
-    %         kB = k;
-    %         dr = rA-rB;
-    %         coef_plus = -kA*rA^2/r^2/drp/dr;
-    %         coef_center = rho_i*Cp/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;
-    %         coef_minus = -kB*rB^2/r^2/drm/dr;
-    %         R(i) = rho_i*Cp/dt*T_last(i) + H;
-    %         L(i,i) =  coef_center;
-    %         if( i==1 )
-    %             L(i,i+1) = coef_plus-coef_minus;
-    %             R(i) = R(i) - 2*Tb*coef_minus;
-    %         elseif i==nr
-    %             L(i,i-1) = coef_minus-coef_plus;
-    %             R(i) = R(i) - 2*Ts*coef_plus;
-    %         else
-    %             L(i,i-1) = coef_minus;
-    %             L(i,i+1) = coef_plus;
-    %         end
-    %     end
-    %     T = L\R;
-    
     % 2. Calculate thickening
     % basal heat flux
     %     qb = -k*(T(2)-T(1))/(grid_r(2)-grid_r(1)); % W/m^2
@@ -190,34 +158,72 @@ while time < t_end
     %     z = z_last + delta_rb;
     
     % calculate the timestep
-    delta = Inf;
-    dt=dtmax*2;
-    while abs(delta) > (grid_r(2)-grid_r(1))/2 && dt >= dtmin
-        dt = dt/2;
-        new_thickness = zm(initial_cooling_age+time+dt);
-        delta = new_thickness - (Ro-grid_r(1));
+    if( use_analytic_temperature )
+        delta = Inf;
+        dt=dtmax*2;
+        while abs(delta) > (grid_r(2)-grid_r(1))/2 && dt >= dtmin
+            dt = dt/2;
+            new_thickness = zm(initial_cooling_age+time+dt);
+            delta = new_thickness - (Ro-grid_r(1));
+        end
+        fprintf('Timestep %e elapsed time %e\n',dt,time+dt);
+        z=new_thickness-initial_thickness;
+        delta_rb = new_thickness-initial_thickness;
+        f = (1-2*initial_thickness/Ro);
+        delta_rho = (rho_w-rho_i);
+        surface_uplift = (delta_rb)*(delta_rho)/rho_w*f/(1+(f*(delta_rho)/rho_w));
+        
+        % calculate new ocean pressure (Manga and Wang 2007, equation 5)
+        %     Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1));% ur_last because we don't yet know the uplift
+        Pex_pred = surface_uplift*E/(1-nu)*2/Ro^2*(new_thickness/4); % last term assumes elastic thickness ~1/4 total thickness
+        % re-mesh onto new grid
+        new_grid_r = linspace(Ri-delta_rb,Ro,nr);
+        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
+        grid_r = new_grid_r; % end interpolation step
+        
+        % calculate d/dr(Tdot)
+        %     Tdot = (T-T_last)/dt;
+        %     Tdot = zeros(size(T_last));
+        %     Tdot(:) = dTdt(Ro-new_grid_r,initial_cooling_age+time+dt);
+        %     T = T_last + Tdot*dt;
+        T = stefan_T( Ro-new_grid_r',initial_cooling_age+time+dt);
+    else
+        Tg = Tb-(T_last(2)-Tb);
+        dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
+        qb = -k*dTdr_b_last;
+        
+        % determine the timestep
+        dt = dtmax;
+        if abs(qb/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
+            dt = (grid_r(2)-grid_r(1))/2/(qb/Lf/rho_i);
+        end
+        if dt < dtmin
+            dt = dtmin;
+        end
+        % thickening would be dx/dt = qb/(L*rho_i)
+        delta_rb = dt*qb/Lf/rho_i;
+        new_thickness = Ro-grid_r(1)+delta_rb;
+        z=new_thickness-initial_thickness;
+        delta_rb = z;
+        f = (1-2*initial_thickness/Ro);
+        delta_rho = (rho_w-rho_i);
+        surface_uplift = (delta_rb)*(delta_rho)/rho_w*f/(1+(f*(delta_rho)/rho_w));
+        
+        % calculate new ocean pressure (Manga and Wang 2007, equation 5)
+        %     Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1));% ur_last because we don't yet know the uplift
+        Pex_pred = surface_uplift*E/(1-nu)*2/Ro^2*(new_thickness/4); % last term assumes elastic thickness ~1/4 total thickness
+        % re-mesh onto new grid
+        new_grid_r = linspace(Ri-z,Ro,nr);
+        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
+        grid_r = new_grid_r; % end interpolation step
+        
+        % 2. form discrete operators and solve the heat equation
+        T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt);
+        
     end
-    fprintf('Timestep %e elapsed time %e\n',dt,time+dt);
-    z=new_thickness-initial_thickness;
-    delta_rb = new_thickness-initial_thickness;
-    f = (1-2*initial_thickness/Ro);
-    delta_rho = (rho_w-rho_i);
-    surface_uplift = (delta_rb)*(delta_rho)/rho_w*f/(1+(f*(delta_rho)/rho_w));
     
-    % calculate new ocean pressure (Manga and Wang 2007, equation 5)
-    %     Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1));% ur_last because we don't yet know the uplift
-    Pex_pred = surface_uplift*E/(1-nu)*2/Ro^2*(new_thickness/4); % last term assumes elastic thickness ~1/4 total thickness
-    % re-mesh onto new grid
-    new_grid_r = linspace(Ri-delta_rb,Ro,nr);
-    [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
-    grid_r = new_grid_r; % end interpolation step
     
-    % calculate d/dr(Tdot)
-    %     Tdot = (T-T_last)/dt;
-%     Tdot = zeros(size(T_last));
-%     Tdot(:) = dTdt(Ro-new_grid_r,initial_cooling_age+time+dt);
-%     T = T_last + Tdot*dt;
-    T = stefan_T( Ro-new_grid_r',initial_cooling_age+time+dt);
+    
     Tdot = (T-T_last)/dt;
     
     dTdotdr = zeros(nr,1);
@@ -262,11 +268,7 @@ while time < t_end
         er = er_last + de_r;
         et = et_last + de_t;
         ur = grid_r'.*et; %radial displacement
-        % re-calculate excess pressure using new uplift
-        % Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
-%         fprintf('end of nonlinear loop. actual uplift %.2e desired uplift %.2e\n',ur(end),surface_uplift);
-        
-        
+
         % check for convergence
         if abs( ur(end)-surface_uplift )/abs(surface_uplift) < 1e-6
             fprintf('time %.2e: converged in %d iterations. actual uplift %.2e desired uplift %.2e\n',time/seconds_in_year,iter,ur(end),surface_uplift);
@@ -307,9 +309,8 @@ while time < t_end
         plot(ur(end),sigma_t(end),'.'); hold on;
         
         figure(fig1a.h); % Nimmo's Figure 1a
-%         str1 = sprintf('%.1f',plot_times(iplot)/seconds_in_year/1e6);
         h=plot(fig1a.ax(1),(Ro-grid_r)/1e3,sigma_t_last/1e6);
-%         fig1a.lh(end+1) = h;
+
         plot(fig1a.ax(2),(Ro-grid_r)/1e3,T_last,'--','Color',h.Color);
         
         
@@ -321,8 +322,6 @@ while time < t_end
         time_store(isave) = time;
         last_store = time; isave = isave+1;
     end
-    
-    
 end
 %% add legends
 for i=1:length(plot_times)
