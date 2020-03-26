@@ -9,8 +9,10 @@
 clear;
 close all;
 
+use_analytic_temperature = false; % whether to solve the energy equation or use an analytic solution (true)
+
 % Numerical parameters
-nr = 501; % number of grid points
+nr = 401; % number of grid points
 relaxation_parameter=.01; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
@@ -37,7 +39,6 @@ mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
-Lf = 334*1000; % latent heat of fusion (J/kg)
 kappa = 1e-6;% m/s/s
 k=kappa*rho_i*Cp;
 
@@ -52,7 +53,6 @@ stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts
 % If solving the energy equation, we need the right value of L
 % corresponding to lam1 = 0.65
 Lf = exp(-lam1^2)/lam1/erf(lam1) * Cp*(Tb-Ts)/sqrt(pi);% Turcotte and Schubert Equation 4.141
-
 
 % calculate maxwell time at 100, 270
 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
@@ -139,51 +139,12 @@ last_store = time; isave = isave+1;
 
 
 while time < t_end
-%     dt = times(itime+1)-times(itime); itime = itime+1;
     % In each timestep, we do the following
     % 1. Calculate the amount of basal freeze-on and advance the mesh
     % 2. Solve the heat equation using an implicit method
     % 3. Solve for sigma_r
     % 4. Calculate sigma_t
     % 5. Calculate the radial displacements u(r)
-    
-    % 1. form discrete operators and solve the heat equation
-%     L = zeros(nr,nr);
-%     R = zeros(nr,1);
-%     for i=1:nr
-%         r = grid_r(i);
-%         if i==1
-%             drm = grid_r(i+1)-grid_r(i);
-%         else
-%             drm = grid_r(i)-grid_r(i-1);
-%         end
-%         if i==nr
-%             drp = drm;
-%         else
-%             drp = grid_r(i+1)-grid_r(i);
-%         end
-%         rA = r + drp/2;
-%         rB = r - drm/2;
-%         kA = k;% thermal conductivities
-%         kB = k;
-%         dr = rA-rB;
-%         coef_plus = -kA*rA^2/r^2/drp/dr;
-%         coef_center = rho_i*Cp/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;
-%         coef_minus = -kB*rB^2/r^2/drm/dr;
-%         R(i) = rho_i*Cp/dt*T_last(i) + H;
-%         L(i,i) =  coef_center;
-%         if( i==1 )
-%             L(i,i+1) = coef_plus-coef_minus;
-%             R(i) = R(i) - 2*Tb*coef_minus;
-%         elseif i==nr
-%             L(i,i-1) = coef_minus-coef_plus;
-%             R(i) = R(i) - 2*Ts*coef_plus;
-%         else
-%             L(i,i-1) = coef_minus;
-%             L(i,i+1) = coef_plus;
-%         end
-%     end
-%     T = L\R;   
     
     % 2. Calculate thickening
     % basal heat flux
@@ -256,27 +217,8 @@ while time < t_end
         T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt);
         
     end
-    fprintf('Timestep %e elapsed time %e\n',dt,time+dt);
-    z=new_thickness-initial_thickness;
-    delta_rb = new_thickness-initial_thickness;
-    f = (1-2*initial_thickness/Ro);
-    delta_rho = (rho_w-rho_i);
-    surface_uplift = (delta_rb)*(delta_rho)/rho_w*f/(1+(f*(delta_rho)/rho_w));
     
-    % calculate new ocean pressure (Manga and Wang 2007, equation 5)
-%     Pex_pred = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur_last(1));% ur_last because we don't yet know the uplift
-    Pex_pred = surface_uplift*E/(1-nu)*2/Ro^2*(new_thickness/4); % last term assumes elastic thickness ~1/4 total thickness
-    % re-mesh onto new grid
-    new_grid_r = linspace(Ri-delta_rb,Ro,nr);
-    [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
-    grid_r = new_grid_r; % end interpolation step
-    
-    % calculate d/dr(Tdot)
-    %     Tdot = (T-T_last)/dt;
-%     Tdot = zeros(size(T_last));
-%     Tdot(:) = dTdt(Ro-new_grid_r,initial_cooling_age+time+dt);
-%     T = T_last + Tdot*dt;
-    T = stefan_T( Ro-new_grid_r',initial_cooling_age+time+dt);
+
     Tdot = (T-T_last)/dt;
     
     dTdotdr = zeros(nr,1);
@@ -384,6 +326,9 @@ ylabel('Tangential Stress (MPa)');
 set(gcf,'Color','w');
 h=gcf;
 h.Position(3:4) = [390 580];
-saveas(gcf,'Nimmo_Figure1.eps','psc2')
-
+if use_analytic_temperature
+    saveas(gcf,'Nimmo_Figure1.eps','psc2')
+else
+    saveas(gcf,'Nimmo_Figure1_numerical.eps','psc2')
+end
 

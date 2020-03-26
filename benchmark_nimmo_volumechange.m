@@ -39,7 +39,6 @@ mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
-% Lf = 334*1000; % latent heat of fusion (J/kg)
 kappa = 1e-6;% m/s/s
 k=kappa*rho_i*Cp;
 
@@ -54,7 +53,6 @@ stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts
 % If solving the energy equation, we need the right value of L
 % corresponding to lam1 = 0.65
 Lf = exp(-lam1^2)/lam1/erf(lam1) * Cp*(Tb-Ts)/sqrt(pi);% Turcotte and Schubert Equation 4.141
-
 
 % calculate maxwell time at 100, 270
 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
@@ -118,9 +116,7 @@ last_plot_time = 0;
 fig1a.h = figure(); % Nimmo's Figure 1a
 subplot(2,1,1);
 [ax,h1,h2]=plotyy((Ro-grid_r)/1e3,sigma_t_last/1e6,(Ro-grid_r)/1e3,T_last);
-h1.DisplayName = '0.0';
 fig1a.ax = ax;
-axis(ax(1));
 h2.Color = h1.Color;
 h2.LineStyle = '--';
 hold(ax(1)); hold(ax(2));
@@ -222,8 +218,7 @@ while time < t_end
         
     end
     
-    
-    
+
     Tdot = (T-T_last)/dt;
     
     dTdotdr = zeros(nr,1);
@@ -310,7 +305,6 @@ while time < t_end
         
         figure(fig1a.h); % Nimmo's Figure 1a
         h=plot(fig1a.ax(1),(Ro-grid_r)/1e3,sigma_t_last/1e6);
-
         plot(fig1a.ax(2),(Ro-grid_r)/1e3,T_last,'--','Color',h.Color);
         
         
@@ -346,6 +340,9 @@ ylabel('Tangential Stress (MPa)');
 set(gcf,'Color','w');
 h=gcf;
 h.Position(3:4) = [390 580];
-saveas(gcf,'Nimmo_Figure2.eps','psc2')
-
+if use_analytic_temperature
+    saveas(gcf,'Nimmo_Figure2.eps','psc2')
+else
+    saveas(gcf,'Nimmo_Figure2_numerical.eps','psc2')
+end
 
