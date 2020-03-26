@@ -5,7 +5,7 @@ close all;
 
 % Numerical parameters
 nr = 200; % number of grid points
-relaxation_parameter=.05; % used in nonlinear loop.
+relaxation_parameter=.01; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
 % Physical constants
@@ -16,7 +16,7 @@ H=0; % internal heating rate.
 Tb=270;
 Ts=100;
 Ro = 2.52e5;             % outer radius of ice shell (m)
-Ri = 2.52e5-3e4;         % inner radius of ice shell (m)
+Ri = 2.52e5-12e3;         % inner radius of ice shell (m)
 Rc = 1.60e5;             % core radius (m)
 % Elastic and Viscous properties
 E = 5e9;        % shear modulus of ice (Pa)
@@ -28,6 +28,8 @@ rho_w=1000;     % density of water (kg/m^3)
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
 mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
+g = 0.113;      % used to plot a failure curve
+tau = 3e6; % tensile strength, Pa
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
 Lf = 334*1000; % latent heat of fusion (J/kg)
@@ -38,9 +40,9 @@ k=kappa*rho_i*Cp;
 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
 % set end time and grid resolution
-t_end = 24e6*seconds_in_year;
+t_end = 0.5e6*seconds_in_year;
 % dt = 1e4*seconds_in_year; % time step in seconds
-dtmax = 1e5*seconds_in_year;
+dtmax = 1e3*seconds_in_year;
 dtmin = seconds_in_year;
 % dt1 = 3600; % size of first timestep
 % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
@@ -66,7 +68,7 @@ Pex_last = 0; %initial overpressure
 % Set up plot
 hf2=figure();
 
-plot_times = [0.0 0.8 1.6 3.2 6.4 12 24]*1e6*seconds_in_year; iplot=2;
+plot_times = [0.0 0.1 0.2 0.3 0.4 0.5]*1e6*seconds_in_year; iplot=2;
 hf=figure(2);
 subplot(1,4,1); % sigma_r and sigma_t
 h=plot(sigma_r_last,Ro-grid_r); hold on;
@@ -260,8 +262,8 @@ for i=1:length(plot_times)
 end
 figure( fig1a.h );
 axis(fig1a.ax(1));
-legend(labels,'Location','southeast');
-
+legend(labels,'Location','southeast','AutoUpdate','off');
+plot(fig1a.ax(1),(Ro-grid_r)/1e3,(tau + rho_i*g*(Ro-grid_r))/1e6,'k');
 
 %% Nimmo's figure 1b
 figure(fig1a.h);
@@ -277,6 +279,25 @@ ylabel('Tangential Stress (MPa)');
 set(gcf,'Color','w');
 h=gcf;
 h.Position(3:4) = [390 580];
-saveas(gcf,'Stress_evolution.eps','psc2')
+saveas(gcf,'Enceladus_initial12km.eps','psc2')
 
+%% Plastic yielding?
+figure();
+Pnhs = -1/3*(sigma_r + 2*sigma_t); % compression = positive for pressure
+Phydrostatic = rho_i*g*(Ro-grid_r');
+Ptotal = Pnhs + Phydrostatic;
+Sr = sigma_r - 1/3*(sigma_r + 2*sigma_t);
+St = sigma_t - 1/3*(sigma_r + 2*sigma_t);
+J2 = 1/2*(sigma_rD.^2 + 2*sigma_tD.^2);
+sig_eff = sqrt(3*J2);
 
+tau_yield = 1e5 + 0.6*Ptotal;
+subplot(2,1,1);
+plot(Ro-grid_r,Phydrostatic); hold on
+plot(Ro-grid_r,Pnhs,'r--');
+plot(Ro-grid_r,Pnhs+Phydrostatic,'k');
+legend('Hydrostatic','Nonhydrostatic','Total');
+subplot(2,1,2);
+plot(Ro-grid_r,tau_yield,'g'); hold on;
+plot(Ro-grid_r,sig_eff,'k');
+legend('Yield Stress','Effective Stress');
