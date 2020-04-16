@@ -291,7 +291,7 @@ St = sigma_t - 1/3*(sigma_r + 2*sigma_t);
 J2 = 1/2*(sigma_rD.^2 + 2*sigma_tD.^2);
 sig_eff = sqrt(3*J2);
 
-tau_yield = 1e5 + 0.6*Ptotal;
+tau_yield = 3e6 + 0.0*Ptotal;
 subplot(2,1,1);
 plot(Ro-grid_r,Phydrostatic); hold on
 plot(Ro-grid_r,Pnhs,'r--');
@@ -301,3 +301,5 @@ subplot(2,1,2);
 plot(Ro-grid_r,tau_yield,'g'); hold on;
 plot(Ro-grid_r,sig_eff,'k');
 legend('Yield Stress','Effective Stress');
+
+
