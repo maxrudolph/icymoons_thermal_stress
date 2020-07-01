@@ -2,6 +2,7 @@
 % Max Rudolph, March 19, 2020
 clear;
 close all;
+addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 nr = 200; % number of grid points

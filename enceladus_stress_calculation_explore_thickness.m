@@ -4,6 +4,10 @@ clear;
 close all;
 addpath core; % this is where the helper functions live.
 
+% set up parameter space search
+thickness_values = linspace(12000,20000,2);
+eta0_values = logspace(14,16,2);
+
 % Numerical parameters
 nr = 200; % number of grid points
 relaxation_parameter=.01; % used in nonlinear loop.
@@ -137,7 +141,6 @@ while time < t_end
     end
     if dt < dtmin
         dt = dtmin;
-        disp('Setting dt = dtmin');
     end
     % thickening would be dx/dt = qb/(L*rho_i)    
     delta_rb = dt*qb/Lf/rho_i;
@@ -260,7 +263,7 @@ while time < t_end
 end
 %% add legends
 for i=1:length(plot_times)
-    labels{i} = sprintf('%.2f Myr',plot_times(i)/seconds_in_year/1e6);
+    labels{i} = sprintf('%.1f',plot_times(i)/seconds_in_year/1e6);
 end
 figure( fig1a.h );
 axis(fig1a.ax(1));
