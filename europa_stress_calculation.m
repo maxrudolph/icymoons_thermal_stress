@@ -5,7 +5,7 @@ close all;
 addpath core; % this is where the helper functions live.
 
 % Numerical parameters
-nr = 200; % number of grid points
+nr = 500; % number of grid points
 relaxation_parameter=1e-4; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
@@ -29,8 +29,9 @@ rho_w=1000;     % density of water (kg/m^3)
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
 mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
+% Failure criterion:
 g = 1.3;        % used to plot a failure curve
-tau = 3e6; % tensile strength, Pa
+tensile_strength = 3e6; % tensile strength, Pa
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
 Lf = 334*1000; % latent heat of fusion (J/kg)
@@ -116,8 +117,8 @@ sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
 time_store(isave) = time;
 last_store = time; isave = isave+1;
 
-
-while time < t_end
+failure_occurred = 0;
+while time < t_end && ~failure_occurred
     % In each timestep, we do the following
     % 1. Calculate the amount of basal freeze-on and advance the mesh
     % 2. Solve the heat equation using an implicit method
@@ -203,16 +204,27 @@ while time < t_end
         ur = grid_r'.*et; %radial displacement
         % re-calculate excess pressure using new uplift
         Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
-         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
+        %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
         
         % check for convergence
-        if abs( Pex_post-Pex )/abs(Pex) < 1e-2
-            fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);            
+        if abs( Pex_post-Pex )/abs(Pex) < 1e-6
+            fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);            
             break;
         elseif iter==maxiter
             error('Nonlinear loop failed to converge');
         end
     end%end nonlinear loop
+    % 5. Determine whether tensile failure has occurred
+    failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
+    if( any(failure))
+        disp(['Failure criterion has been reached']);
+        idx_shallow = find(failure,1,'last');
+        idx_deep = find(failure,1,'first');
+        fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
+        fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
+        fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
+        failure_occurred = failure_occurred + 1;
+    end
     
     % 6. advance to next time step and plot (if needed)
     sigma_r_last = sigma_r;
@@ -226,7 +238,7 @@ while time < t_end
     
     time = time + dt;
     
-    if (time >= plot_times(iplot) || time >= t_end)
+    if (time >= plot_times(iplot) || time >= t_end || failure_occurred)
         iplot = iplot+1;
         
         figure(hf);
@@ -253,7 +265,7 @@ while time < t_end
         last_plot_time = time;
         drawnow();
     end
-    if (time-last_store >= save_interval || time >= t_end)
+    if (time-last_store >= save_interval || time >= t_end || failure_occurred)
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         time_store(isave) = time;
         last_store = time; isave = isave+1;       
@@ -266,7 +278,7 @@ end
 figure( fig1a.h );
 axis(fig1a.ax(1));
 legend(labels,'Location','southeast','AutoUpdate','off');
-plot(fig1a.ax(1),(Ro-grid_r)/1e3,(tau + rho_i*g*(Ro-grid_r))/1e6,'k');
+plot(fig1a.ax(1),(Ro-grid_r)/1e3,(tensile_strength + rho_i*g*(Ro-grid_r))/1e6,'k');
 
 %% Nimmo's figure 1b
 figure(fig1a.h);

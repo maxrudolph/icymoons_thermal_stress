@@ -19,8 +19,8 @@ function [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(g
 
 nr = length(grid_r);
 
-M1 = zeros(nr,nr); % coefficients on (dsigma/dt)
-M2 = zeros(nr,nr); % coefficients on (sigma_r)
+M1 = sparse(nr,nr); % coefficients on (dsigma/dt)
+M2 = sparse(nr,nr); % coefficients on (sigma_r)
 R = zeros(nr,1);
 
 for i=1:nr

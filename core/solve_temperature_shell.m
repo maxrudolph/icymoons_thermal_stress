@@ -15,7 +15,7 @@ function T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt)
 
 nr = length(grid_r);
 
-L = zeros(nr,nr);
+L = sparse(nr,nr);
 R = zeros(nr,1);
 for i=1:nr
     r = grid_r(i);
@@ -55,5 +55,4 @@ for i=1:nr
         R(i) = rho_i*Cp/dt*T_last(i) + H;
     end
 end
-L = sparse(L);
 T = L\R;
