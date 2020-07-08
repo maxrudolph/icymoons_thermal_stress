@@ -5,7 +5,7 @@ close all;
 addpath core; % this is where the helper functions live.
 
 % Numerical parameters
-nr = 500; % number of grid points
+nr = 65; % number of grid points
 relaxation_parameter=1e-4; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
