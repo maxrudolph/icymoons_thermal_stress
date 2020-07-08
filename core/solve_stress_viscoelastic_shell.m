@@ -18,11 +18,17 @@ function [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(g
 %
 
 nr = length(grid_r);
-
-M1 = sparse(nr,nr); % coefficients on (dsigma/dt)
-M2 = sparse(nr,nr); % coefficients on (sigma_r)
+m1row = zeros(3*nr,1);
+m1col = zeros(3*nr,1);
+m1val = zeros(3*nr,1);
+m2row = zeros(3*nr,1);
+m2col = zeros(3*nr,1);
+m2val = zeros(3*nr,1);
+% M1 = sparse(nr,nr); % coefficients on (dsigma/dt)
+% M2 = sparse(nr,nr); % coefficients on (sigma_r)
 R = zeros(nr,1);
-
+ind1=1;
+ind2=1;
 for i=1:nr
     if i==1
         drm = grid_r(i+1)-grid_r(i);
@@ -52,13 +58,18 @@ for i=1:nr
         %                 M1(i,i+1) = coef_plus-coef_minus;
         %                 R(i) = R(i) - 2*coef_minus*P;
     elseif i==nr
-        M1(i,i-1) = coef_minus-coef_plus;
-        M1(i,i)   = coef_center;
+        m1row(ind1) = i; m1col(ind1) = i-1; m1val(ind1) = coef_minus-coef_plus; ind1 = ind1 + 1;
+        m1row(ind1) = i; m1col(ind1) = i; m1val(ind1) = coef_center; ind1 = ind1 + 1;
+        %         M1(i,i-1) = coef_minus-coef_plus;
+        %         M1(i,i)   = coef_center;
         R(i) = R(i) - 2*coef_plus*0;
     else
-        M1(i,i-1) = coef_minus;
-        M1(i,i)   = coef_center;
-        M1(i,i+1) = coef_plus;
+        m1row(ind1) = i; m1col(ind1) = i-1; m1val(ind1) = coef_minus; ind1 = ind1+1;
+        m1row(ind1) = i; m1col(ind1) = i; m1val(ind1) = coef_center; ind1 = ind1+1;
+        m1row(ind1) = i; m1col(ind1) = i+1; m1val(ind1) = coef_plus; ind1 = ind1+1;
+        %         M1(i,i-1) = coef_minus;
+        %         M1(i,i)   = coef_center;
+        %         M1(i,i+1) = coef_plus;
     end
     
     % M2 - coefficients of sigma_r
@@ -76,23 +87,33 @@ for i=1:nr
     coef_center =                          -rA/12/mu_A/drp/drc - rB/12/mu_B/drm/drc;
     coef_minus  =-1/(4*this_mu)/(drp+drm) + rB/12/mu_B/drm/drc;
     if i==1
-        M2(i,i)   = coef_center;
-        M2(i,i+1) = coef_plus-coef_minus;
+        m2row(ind2) = i; m2col(ind2) = i; m2val(ind2) = coef_center; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = coef_plus-coef_minus; ind2=ind2+1;
+        %         M2(i,i)   = coef_center;
+        %         M2(i,i+1) = coef_plus-coef_minus;
         R(i) = R(i) - 2*coef_minus*Pex;
     elseif i==nr
-        M2(i,i-1) = coef_minus-coef_plus;
-        M2(i,i)   = coef_center;
+        m2row(ind2) = i; m2col(ind2) = i-1; m2val(ind2) = coef_minus-coef_plus; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i;   m2val(ind2) = coef_center; ind2=ind2+1;
+        %         M2(i,i-1) = coef_minus-coef_plus;
+        %         M2(i,i)   = coef_center;
         R(i) = R(i) - 2*coef_plus*0; % surface sigma_r = 0
     else
-        M2(i,i-1) = coef_minus;
-        M2(i,i)   = coef_center;
-        M2(i,i+1) = coef_plus;
+        m2row(ind2) = i; m2col(ind2) = i-1; m2val(ind2) = coef_minus; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i; m2val(ind2) = coef_center; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = coef_plus; ind2=ind2+1;
+        
+        %         M2(i,i-1) = coef_minus;
+        %         M2(i,i)   = coef_center;
+        %         M2(i,i+1) = coef_plus;
     end
     if i==1
         R(i) = R(i) - coef_minus*2*Pex;
-        M2(i,i+1) = M2(i,i+1) - coef_minus;
+        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = -coef_minus; ind2=ind2+1;
+        %         M2(i,i+1) = M2(i,i+1) - coef_minus;
     elseif i==nr
-        M2(i,i-1) = M2(i,i-1) - coef_plus;
+        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = -coef_plus; ind2=ind2+1;
+        %         M2(i,i-1) = M2(i,i-1) - coef_plus;
         R(i) = R(i) - coef_plus*0; % no change because sigma_r = 0 at surface
     end
     R(i) = R(i) - alpha_dTdotdr(i);
@@ -100,6 +121,8 @@ for i=1:nr
     %         includes the coupling to the energy equation - Tdot needs
     %         to be updated
 end
+M1 = sparse(m1row,m1col,m1val,nr,nr);
+M2 = sparse(m2row,m2col,m2val,nr,nr);
 LHS = (M1+M2);
 R1term = M1*sigma_r_last; % this represents terms involving dsigma/dr at previous timestep
 RHS = (R+R1term);

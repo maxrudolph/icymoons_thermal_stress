@@ -15,8 +15,12 @@ function T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt)
 
 nr = length(grid_r);
 
-L = sparse(nr,nr);
+% L = sparse(nr,nr);
 R = zeros(nr,1);
+row=zeros(3*nr,1);
+col=zeros(3*nr,1);
+val=zeros(3*nr,1);
+ind=1;
 for i=1:nr
     r = grid_r(i);
     if i==1
@@ -39,20 +43,28 @@ for i=1:nr
     coef_minus  = -kB*rB^2/r^2/drm/dr;
     
     if( i==1 )
-        L(i,i) =  coef_center;
+        row(ind) = i;
+        col(ind) = i;        
+        val(ind) =  coef_center;
+        ind = ind + 1;
         %             L(i,i+1) = coef_plus-coef_minus;
         %             R(i) = R(i) - 2*Tb*coef_minus;
         R(i) = coef_center*Tb;
     elseif i==nr
-        L(i,i) =  coef_center;
+        row(ind) = i;
+        col(ind) = i;
+        val(ind) =  coef_center;
+        ind = ind+1;
         %             L(i,i-1) = coef_minus-coef_plus;
         %             R(i) = R(i) - 2*Ts*coef_plus;
         R(i) = coef_center*Ts;
     else
-        L(i,i) =  coef_center;
-        L(i,i-1) = coef_minus;
-        L(i,i+1) = coef_plus;
+        row(ind) = i; col(ind) = i-1; val(ind) = coef_minus;  ind = ind + 1;
+        row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind + 1;
+        row(ind) = i; col(ind) = i+1; val(ind) = coef_plus;   ind = ind + 1;
+
         R(i) = rho_i*Cp/dt*T_last(i) + H;
     end
 end
+L = sparse(row,col,ind,nr,nr);
 T = L\R;
