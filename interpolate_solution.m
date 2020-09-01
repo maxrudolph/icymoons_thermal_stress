@@ -2,14 +2,14 @@ function [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_soluti
 
 interp_r    = grid_r;
 interp_r(1) = new_grid_r(1);% account for thickening by extending first cell.
-
+method = 'spline';
 tmp = T_last;
 tmp(1) = Tb;
-T_last = interp1(interp_r,tmp,new_grid_r)';
-sigma_r_last = interp1(interp_r,sigma_r_last,new_grid_r)';% note imposes sigma_r=sigma_t at base
-sigma_t_last = interp1(interp_r,sigma_t_last,new_grid_r)';
-er_last = interp1(interp_r,er_last,new_grid_r)';
-et_last = interp1(interp_r,et_last,new_grid_r)';
+T_last = interp1(interp_r,tmp,new_grid_r,method)';
+sigma_r_last = interp1(interp_r,sigma_r_last,new_grid_r,method)';% note imposes sigma_r=sigma_t at base
+sigma_t_last = interp1(interp_r,sigma_t_last,new_grid_r,method)';
+er_last = interp1(interp_r,er_last,new_grid_r,method)';
+et_last = interp1(interp_r,et_last,new_grid_r,method)';
 
 % re-mesh onto new grid
 % new_grid_r = linspace(Ri-z,Ro,nr);
