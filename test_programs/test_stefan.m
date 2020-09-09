@@ -1,7 +1,7 @@
 clear
 close all
 
-nx = 10;
+nx = 100;
 H=1;
 Tl=0;
 Tr=1;

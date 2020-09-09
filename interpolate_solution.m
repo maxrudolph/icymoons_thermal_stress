@@ -2,10 +2,15 @@ function [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_soluti
 
 interp_r    = grid_r;
 interp_r(1) = new_grid_r(1);% account for thickening by extending first cell.
-method = 'spline';
+method = 'linear';
 tmp = T_last;
 tmp(1) = Tb;
-T_last = interp1(interp_r,tmp,new_grid_r,method)';
+% T_last = interp1(interp_r,tmp,new_grid_r,method)';
+if( new_grid_r(1) < grid_r(1)) % thickening regime
+    T_last = interp1([new_grid_r(1); grid_r'],[Tb; T_last],new_grid_r)';
+else
+    T_last = interp1(interp_r,tmp,new_grid_r,method)';
+end
 sigma_r_last = interp1(interp_r,sigma_r_last,new_grid_r,method)';% note imposes sigma_r=sigma_t at base
 sigma_t_last = interp1(interp_r,sigma_t_last,new_grid_r,method)';
 er_last = interp1(interp_r,er_last,new_grid_r,method)';

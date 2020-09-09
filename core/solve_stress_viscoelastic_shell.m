@@ -41,7 +41,7 @@ for i=1:nr
         drp = grid_r(i+1) - grid_r(i);
     end
     rA = grid_r(i)+drp/2; % half a cell +
-    rB = grid_r(i)-drm/2;   % half a cell -
+    rB = grid_r(i)-drm/2; % half a cell -
     drc = rA-rB;
     this_mu = mu( i ); % viscosity
     
@@ -50,23 +50,26 @@ for i=1:nr
     const2 = (1-nu)/E; % coefficient on d(r/2 d/dr)/dr term
     coef_a = rA/2/drp/drc;
     coef_b = rB/2/drm/drc;
-    coef_plus   =1/dt*(  const1/(drp+drm)    + const2*coef_a);
-    coef_center =1/dt*(                       -const2*coef_a - const2*coef_b);
-    coef_minus  =1/dt*( -const1/(drp+drm)    + const2*coef_b);
+    coef_plus   =1/dt*(  const1/(drp+drm) + const2*coef_a);
+    coef_center =1/dt*(                   - const2*coef_a - const2*coef_b);
+    coef_minus  =1/dt*( -const1/(drp+drm) + const2*coef_b);
     if i==1
+        m1row(ind1) = i; m1col(ind1) = i;   m1val(ind1) = coef_center;          ind1 = ind1+1;
+        m1row(ind1) = i; m1col(ind1) = i+1; m1val(ind1) = coef_plus-coef_minus; ind1 = ind1+1;
+        R(i) = R(i) - 2*coef_minus*Pex + 2*coef_minus*sigma_r_last(1); % sigma_r(i-1) + sigma_r(i+1) = 2*Pex
         %                 M1(i,i)   = coef_center;
         %                 M1(i,i+1) = coef_plus-coef_minus;
         %                 R(i) = R(i) - 2*coef_minus*P;
     elseif i==nr
         m1row(ind1) = i; m1col(ind1) = i-1; m1val(ind1) = coef_minus-coef_plus; ind1 = ind1 + 1;
-        m1row(ind1) = i; m1col(ind1) = i; m1val(ind1) = coef_center; ind1 = ind1 + 1;
+        m1row(ind1) = i; m1col(ind1) = i;   m1val(ind1) = coef_center; ind1 = ind1 + 1;
         %         M1(i,i-1) = coef_minus-coef_plus;
         %         M1(i,i)   = coef_center;
         R(i) = R(i) - 2*coef_plus*0;
     else
-        m1row(ind1) = i; m1col(ind1) = i-1; m1val(ind1) = coef_minus; ind1 = ind1+1;
-        m1row(ind1) = i; m1col(ind1) = i; m1val(ind1) = coef_center; ind1 = ind1+1;
-        m1row(ind1) = i; m1col(ind1) = i+1; m1val(ind1) = coef_plus; ind1 = ind1+1;
+        m1row(ind1) = i; m1col(ind1) = i-1; m1val(ind1) = coef_minus;  ind1 = ind1+1;
+        m1row(ind1) = i; m1col(ind1) = i;   m1val(ind1) = coef_center; ind1 = ind1+1;
+        m1row(ind1) = i; m1col(ind1) = i+1; m1val(ind1) = coef_plus;  ind1 = ind1+1;
         %         M1(i,i-1) = coef_minus;
         %         M1(i,i)   = coef_center;
         %         M1(i,i+1) = coef_plus;
@@ -74,12 +77,15 @@ for i=1:nr
     
     % M2 - coefficients of sigma_r
     if i == 1
-        mu_B = mu(i);
+        % extrapolate the log-viscosity gradient
+        mu_ghost = exp( log(mu(i)) - ( log(mu(i+1))-log(mu(i)) ) );
+        mu_B = exp(mean(log([mu_ghost mu(i)])));
     else
-        mu_B = exp(mean(log([mu(i-1) mu(i)]))); % viscosity halfway between nodes i,i+1
+        mu_B = exp(mean(log([mu(i-1) mu(i)]))); % viscosity halfway between nodes i,i-1
     end
     if i == nr
-        mu_A = mu(i);
+        mu_ghost = exp( log(mu(i)) + ( log(mu(i))-log(mu(i-1)) ) );
+        mu_A = exp(mean(log([mu_ghost mu(i)])));
     else
         mu_A = exp(mean(log([mu(i) mu(i+1)]))); % viscosity halfway between nodes i,i+1
     end
@@ -87,7 +93,7 @@ for i=1:nr
     coef_center =                          -rA/12/mu_A/drp/drc - rB/12/mu_B/drm/drc;
     coef_minus  =-1/(4*this_mu)/(drp+drm) + rB/12/mu_B/drm/drc;
     if i==1
-        m2row(ind2) = i; m2col(ind2) = i; m2val(ind2) = coef_center; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i;   m2val(ind2) = coef_center;          ind2=ind2+1;
         m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = coef_plus-coef_minus; ind2=ind2+1;
         %         M2(i,i)   = coef_center;
         %         M2(i,i+1) = coef_plus-coef_minus;
@@ -100,39 +106,47 @@ for i=1:nr
         R(i) = R(i) - 2*coef_plus*0; % surface sigma_r = 0
     else
         m2row(ind2) = i; m2col(ind2) = i-1; m2val(ind2) = coef_minus; ind2=ind2+1;
-        m2row(ind2) = i; m2col(ind2) = i; m2val(ind2) = coef_center; ind2=ind2+1;
-        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = coef_plus; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i;  m2val(ind2) = coef_center; ind2=ind2+1;
+        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = coef_plus;  ind2=ind2+1;
         
         %         M2(i,i-1) = coef_minus;
         %         M2(i,i)   = coef_center;
         %         M2(i,i+1) = coef_plus;
     end
     if i==1
-        R(i) = R(i) - coef_minus*2*Pex;
-        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = -coef_minus; ind2=ind2+1;
+        %         R(i) = R(i) - coef_minus*2*Pex;
+        %         m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = -coef_minus; ind2=ind2+1;
         %         M2(i,i+1) = M2(i,i+1) - coef_minus;
     elseif i==nr
-        m2row(ind2) = i; m2col(ind2) = i+1; m2val(ind2) = -coef_plus; ind2=ind2+1;
+%         m2row(ind2) = i; m2col(ind2) = i-1; m2val(ind2) = -coef_plus; ind2=ind2+1;
         %         M2(i,i-1) = M2(i,i-1) - coef_plus;
-        R(i) = R(i) - coef_plus*0; % no change because sigma_r = 0 at surface
+%         R(i) = R(i) - coef_plus*0; % no change because sigma_r = 0 at surface
     end
     R(i) = R(i) - alpha_dTdotdr(i);
     %         R(i) = R(i)+alpha_l*(Tdot(i+1)-Tdot(i))/2/drc; % this term
     %         includes the coupling to the energy equation - Tdot needs
     %         to be updated
 end
+m1row = m1row(1:ind1-1);
+m1col = m1col(1:ind1-1);
+m1val = m1val(1:ind1-1);
+m2row = m2row(1:ind2-1);
+m2col = m2col(1:ind2-1);
+m2val = m2val(1:ind2-1);
+
 M1 = sparse(m1row,m1col,m1val,nr,nr);
 M2 = sparse(m2row,m2col,m2val,nr,nr);
 LHS = (M1+M2);
 R1term = M1*sigma_r_last; % this represents terms involving dsigma/dr at previous timestep
+% R1term(1) = 0;
 RHS = (R+R1term);
 
-LHS(1,:) = 0;
-LHS(1,1) = abs(LHS(2,2));
-RHS(1)   = Pex*LHS(1,1);
-LHS(nr,:) = 0;
-LHS(nr,nr) = abs(LHS(nr-1,nr-1));
-RHS(nr) = LHS(nr,nr)*0;
+% LHS(1,:) = 0;
+% LHS(1,1) = abs(LHS(2,2));
+% RHS(1)   = Pex*LHS(1,1);
+% LHS(nr,:) = 0;
+% LHS(nr,nr) = abs(LHS(nr-1,nr-1));
+% RHS(nr) = LHS(nr,nr)*0;
 LHS = sparse(LHS);
 sigma_r = LHS\RHS;
 
@@ -153,3 +167,4 @@ sigma_t = sigma_r+(grid_r'/2).*dsrdr;
 %deviatoric stresses, from Hillier and Squyres (1991) equations A8-9
 sigma_tD =  grid_r'/6.*dsrdr;
 sigma_rD = -grid_r'/3.*dsrdr;
+end

@@ -1,4 +1,4 @@
-function T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt)
+function [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb)
 % Solve the energy equation in spherical coordinates
 % VECTOR inputs
 % grid_r - node locations
@@ -43,28 +43,41 @@ for i=1:nr
     coef_minus  = -kB*rB^2/r^2/drm/dr;
     
     if( i==1 )
-        row(ind) = i;
-        col(ind) = i;        
-        val(ind) =  coef_center;
-        ind = ind + 1;
+        row(ind) = i; col(ind) = i; val(ind) =  coef_center; ind = ind + 1;
+        row(ind) = i; col(ind) = i+1; val(ind) =  coef_plus-coef_minus; ind = ind + 1;
+        R(i) = rho_i*Cp/dt*T_last(i) + H - 2*Tb*coef_minus;
         %             L(i,i+1) = coef_plus-coef_minus;
         %             R(i) = R(i) - 2*Tb*coef_minus;
-        R(i) = coef_center*Tb;
+        %         R(i) = coef_center*Tb;
     elseif i==nr
-        row(ind) = i;
-        col(ind) = i;
-        val(ind) =  coef_center;
-        ind = ind+1;
+        row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind+1;
+        row(ind) = i; col(ind) = i-1; val(ind) = coef_minus-coef_plus; ind = ind+1;
         %             L(i,i-1) = coef_minus-coef_plus;
-        %             R(i) = R(i) - 2*Ts*coef_plus;
-        R(i) = coef_center*Ts;
+        R(i) = rho_i*Cp/dt*T_last(i) + H - 2*Ts*coef_plus;
+        %         R(i) = coef_center*Ts;
     else
         row(ind) = i; col(ind) = i-1; val(ind) = coef_minus;  ind = ind + 1;
         row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind + 1;
         row(ind) = i; col(ind) = i+1; val(ind) = coef_plus;   ind = ind + 1;
-
+        
         R(i) = rho_i*Cp/dt*T_last(i) + H;
     end
 end
-L = sparse(row,col,ind,nr,nr);
+row = row(1:ind-1);
+col = col(1:ind-1);
+val = val(1:ind-1);
+L = sparse(row,col,val,nr,nr);
 T = L\R;
+
+dTdr_b = (T(2)-Tb)/(grid_r(2)-grid_r(1));
+Tdot = (T-T_last)/dt;
+Tdot(1) = dTdr_b*delta_rb/dt;
+dTdotdr = zeros(nr,1);
+for i=2:nr-1
+    dTdotdr(i) = (Tdot(i+1)-Tdot(i-1))/(grid_r(i+1)-grid_r(i-1));
+end
+dTdotdr(nr) = (0-Tdot(nr-1))/(grid_r(nr)-grid_r(nr-1));
+%         dTdotdr(1)  = (Tdot(2)-Tdot(1))/(grid_r(2)-grid_r(1)); % First-order approximation at i=1
+dr1 = grid_r(2)-grid_r(1);
+dTdotdr(1) = 1/dr1*(2*(Tdot(2)-Tdot(1)) - (Tdot(3)-Tdot(1))/2); % 2nd order approximation to dTdr using a right-weighted stencil.
+end

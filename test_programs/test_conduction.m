@@ -24,7 +24,7 @@ lam1_max = 1.6;
 lam1_min = 0.1;
 residual = @(lam1) exp(-lam1^2)/lam1/erf(lam1) - Lf*sqrt(pi)/(Cp*(Tb-Ts)); % turcotte and schubert 4.141 expressed as a residual
 while lam1_max-lam1_min > 1e-6
-    lam1_guess = 1/2*(lam1_max+lam1_min)
+    lam1_guess = 1/2*(lam1_max+lam1_min);
     ub = residual(lam1_max);
     lb = residual(lam1_min);
     if sign(residual(lam1_guess)) == sign(ub)
@@ -80,7 +80,8 @@ while( time < tmax )
     ztmp = [z_last(1)-delta_z z_last];
     %      ztmp(1) = ztmp(1)-delta_z;
     z=linspace(ztmp(1),zmax,nz);
-    T_last = interp1(ztmp,[T_last(1) T_last'],z);
+    %     T_last = interp1(ztmp,[T_last(1) T_last'],z);
+    T_last = interp1(z_last,T_last,z,'linear','extrap');
     z_last = z;
     
     %     Ttmp = T_last;

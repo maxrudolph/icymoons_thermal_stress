@@ -6,7 +6,7 @@ addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [64 128 256 512 1024 2048];
+nrs = [256];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
@@ -36,28 +36,49 @@ for inr=1:length(nrs)
     mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
     % Failure criterion:
     g = 1.3;        % used to plot a failure curve
-    tensile_strength = 1e5; % tensile strength, Pa
+    tensile_strength = 1e9; % tensile strength, Pa
     % Thermal properties
     Cp = 2100; %heat capacity of ice J/kg/K
     Lf = 334*1000; % latent heat of fusion (J/kg)
     kappa = 1e-6;% m/s/s
     k=kappa*rho_i*Cp;
+    %
+    % Basal heating model - depends on thickness and transport properties
+    %
+    Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
+    perturbation_period = 1.0e7*seconds_in_year;
+    deltaQonQ = 0.5; % fractional perturbation to Q0.
+    Qbelow = @(time) Q0*(1+deltaQonQ*sin(2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
+    
     
     % calculate maxwell time at 100, 270
     fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
     fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
     % set end time and grid resolution
-    t_end = 1e6*seconds_in_year;
+    t_end = 5e7*seconds_in_year;
     % dt = 1e4*seconds_in_year; % time step in seconds
-    dtmax = 1e2*seconds_in_year;
-    dtmin = seconds_in_year;
+    dtmax = 1e4*seconds_in_year;
+    dtmin = 1e2*seconds_in_year;
     % dt1 = 3600; % size of first timestep
     % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
     plot_interval = t_end;
-    save_interval = 1e5*seconds_in_year;
-    save_depths = [0 0.5 1 1.5 2 2.5]*1000;
-    nsave = ceil(t_end/save_interval) + 1; nsave_depths = length(save_depths);
+    save_interval = 1e4*seconds_in_year;
+    %     save_depths = [0 0.5 1 1.5 2 2.5]*1000;
+    save_depths = linspace(0,2500,100);
+    nsave = ceil(t_end/save_interval) + 1; 
+    nsave_depths = length(save_depths);
     sigma_t_store = zeros(nsave_depths,nsave);
+    
+    results.time = zeros(nsave,1);
+    results.z = zeros(nsave,1);
+    results.qb = zeros(nsave,1);
+    results.sigma_t = zeros(nsave_depths,nsave);
+    results.sigma_r = zeros(nsave_depths,nsave);
+    results.Pex = zeros(nsave,1);
+    results.dTdr = zeros(nsave_depths,nsave);
+    results.T = zeros(nsave_depths,nsave);
+    results.ur = zeros(nsave_depths,nsave);
+    
     
     % set up the grid
     grid_r = linspace(Ri,Ro,nr); % set up the grid
@@ -65,11 +86,15 @@ for inr=1:length(nrs)
     % initialize solution vectors (IC)
     sigma_r_last = zeros(nr,1); % initial stresses
     sigma_t_last = zeros(nr,1); % initial stresses
-    T_last = linspace(Tb,Ts,nr)';
+    T_last = zeros(nr,1);
+    % Initialize T with steady numerical solution.
+    T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);
+    
     er_last = zeros(nr,1); % strains
     et_last = zeros(nr,1);
     ur_last = zeros(nr,1);      % displacement
-    z_last = 0; % total amount of thickening
+    z_last = 0;    % total amount of thickening
+    dzdt_last = 0; % thickening rate
     Pex_last = 0; %initial overpressure
     
     % Set up plot
@@ -133,46 +158,38 @@ for inr=1:length(nrs)
         
         % 1. Calculate basal freeze-on and interpolate old solution onto new mesh
         % calculate heat flux
+        dt = dtmax;
         Tg = Tb-(T_last(2)-Tb);
         dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
-        qb = -k*dTdr_b_last;
+        qb = -k*dTdr_b_last;        
+        qb_net = qb - Qbelow(time+dt); % first term is conducted heat. second term is heat supplied from below.
         
-        % determine the timestep
-        dt = dtmax;
-        if abs(qb/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
-            dt =  (grid_r(2)-grid_r(1))/2/(qb/Lf/rho_i);
+        % determine the timestep        
+        if abs(qb_net/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
+            dt = abs( (grid_r(2)-grid_r(1))/2/(qb_net/Lf/rho_i) );
         end
         if dt < dtmin
             dt = dtmin;
             disp('Setting dt = dtmin');
         end
+        qb_net = qb - Qbelow(time+dt);
+        
         % thickening would be dx/dt = qb/(L*rho_i)
-        delta_rb = dt*qb/Lf/rho_i;
+        delta_rb = dt*qb_net/Lf/rho_i;
         z = z_last + delta_rb;
+        dzdt = delta_rb/dt;
         
         % calculate new ocean pressure (Manga and Wang 2007, equation 5)
         Pex_pred = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
         
-        % re-mesh onto new grid
         new_grid_r = linspace(Ri-z,Ro,nr);
-        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
+        dTdr_last = (T_last(2)-Tb)/(grid_r(2)-grid_r(1));
+        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);        
         grid_r = new_grid_r; % end interpolation step
-        
+
         % 2. form discrete operators and solve the heat equation
-        T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt);
-        
-        %Compute d(Tdot)/dr
-        Tdot = (T-T_last)/dt;
-        dTdr_b = (T(2)-T(1))/(grid_r(2)-grid_r(1));
-        Tdot(1) = delta_rb*dTdr_b/dt; % this is an approximation to the Eulerian cooling rate at the ocean-ice interface
-        
-        dTdotdr = zeros(nr,1);
-        for i=2:nr-1
-            dTdotdr(i) = (Tdot(i+1)-Tdot(i-1))/(grid_r(i+1)-grid_r(i-1));
-        end
-        dTdotdr(1) = (Tdot(2)-Tdot(1))/(grid_r(2)-grid_r(1));
-        dTdotdr(nr) = (Tdot(nr)-Tdot(nr-1))/(grid_r(nr)-grid_r(nr-1));
-        
+        [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb);
+                
         % 3. Nonlinear loop over pressure.
         % because the ocean pressure depends on the uplift, we make a guess
         % (above). Using this guess, we calculate stresses, strains, and
@@ -197,6 +214,7 @@ for inr=1:length(nrs)
             
             % 5. Calculate the strains
             dT = T-T_last;
+            dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
             dT(1) = delta_rb*dTdr_b;
             
             dsigma_t = sigma_t - sigma_t_last;
@@ -209,16 +227,26 @@ for inr=1:length(nrs)
             ur = grid_r'.*et; %radial displacement
             % re-calculate excess pressure using new uplift
             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
-%             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
+            %             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
             
             % check for convergence
-            if abs( Pex_post-Pex )/abs(Pex) < 1e-6
+            if abs( Pex_post-Pex )/abs(Pex) < 1e-3
                 fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                 break;
             elseif iter==maxiter
                 error('Nonlinear loop failed to converge');
             end
         end%end nonlinear loop
+        if max(abs(diff(ur))) > 1000
+            figure();
+            plot(1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))); hold on
+            plot(alpha_l*dT);
+            plot(dt/2*(sigma_tD./mu_node));
+            legend('elastic','thermal','viscous');
+            keyboard
+        end
+        
+        
         % 5. Determine whether tensile failure has occurred
         failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
         if( any(failure))
@@ -275,9 +303,36 @@ for inr=1:length(nrs)
         if (time-last_store >= save_interval || time >= t_end || failure_occurred)
             sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
             time_store(isave) = time;
+            
+            results.time(isave) = time;
+            results.z(isave) = z;
+            results.qb(isave) = Qbelow(time);
+            results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
+            results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
+            results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
+            results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
+            results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
+            results.Pex(isave) = Pex;
             last_store = time; isave = isave+1;
         end
     end
+    %%   
+    mask = 1:(isave-1);
+    figure();
+    
+    subplot(3,1,1);    
+    plot(results.time(mask)/seconds_in_year,results.z(mask))
+    ylabel('Amount of freezing (m)');
+    subplot(3,1,2);
+    plot(results.time(mask)/seconds_in_year,results.sigma_t(1,mask),'DisplayName',sprintf('%.02f km',save_depths(1)/1000));
+    hold on
+    plot(results.time(mask)/seconds_in_year,results.sigma_t(10,mask),'DisplayName',sprintf('%.02f km',save_depths(10)/1000));
+    plot(results.time(mask)/seconds_in_year,results.sigma_t(20,mask),'DisplayName',sprintf('%.02f km',save_depths(20)/1000));
+    legend();
+    ylabel('\sigma_t (Pa)')
+    subplot(3,1,3);
+    plot(results.time(mask)/seconds_in_year,results.Pex(mask));
+    ylabel('Overpressure (Pa)');
 end
 %% add legends
 for i=1:length(plot_times)
