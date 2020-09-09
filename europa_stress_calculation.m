@@ -6,7 +6,7 @@ addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [256];
+nrs = [65,128,256,512,1024];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
@@ -36,7 +36,7 @@ for inr=1:length(nrs)
     mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
     % Failure criterion:
     g = 1.3;        % used to plot a failure curve
-    tensile_strength = 1e9; % tensile strength, Pa
+    tensile_strength = 1e6; % tensile strength, Pa
     % Thermal properties
     Cp = 2100; %heat capacity of ice J/kg/K
     Lf = 334*1000; % latent heat of fusion (J/kg)
@@ -49,7 +49,7 @@ for inr=1:length(nrs)
     perturbation_period = 1.0e7*seconds_in_year;
     deltaQonQ = 0.5; % fractional perturbation to Q0.
     Qbelow = @(time) Q0*(1+deltaQonQ*sin(2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
-    
+    Qbelow = @(time) 0.0;
     
     % calculate maxwell time at 100, 270
     fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
@@ -57,7 +57,7 @@ for inr=1:length(nrs)
     % set end time and grid resolution
     t_end = 5e7*seconds_in_year;
     % dt = 1e4*seconds_in_year; % time step in seconds
-    dtmax = 1e4*seconds_in_year;
+    dtmax = 1e5*seconds_in_year;
     dtmin = 1e2*seconds_in_year;
     % dt1 = 3600; % size of first timestep
     % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;

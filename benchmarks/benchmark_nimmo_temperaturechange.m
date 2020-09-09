@@ -49,7 +49,7 @@ cooling_age = @(zm) (zm/2/lam1)^2/kappa;
 initial_cooling_age = cooling_age(initial_thickness);
 zm = @(t) 2*lam1*sqrt(kappa*t);
 dTdt = @(z,t) -(Tb-Ts)/erf(lam1)*exp(-z.^2/4/kappa/t).*z/(2*sqrt(pi*kappa*t^3));
-stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts
+stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts;
 % If solving the energy equation, we need the right value of L
 % corresponding to lam1 = 0.65
 Lf = exp(-lam1^2)/lam1/erf(lam1) * Cp*(Tb-Ts)/sqrt(pi);% Turcotte and Schubert Equation 4.141
@@ -214,22 +214,10 @@ while time < t_end
         grid_r = new_grid_r; % end interpolation step
         
         % 2. form discrete operators and solve the heat equation
-        T = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt);
+        [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb);
         
     end
-    
-
-    Tdot = (T-T_last)/dt;
-    dTdr_b = (T(2)-T(1))/(grid_r(2)-grid_r(1));
-    Tdot(1) = delta_rb*dTdr_b/dt; % this is an approximation to the Eulerian cooling rate at the ocean-ice interface
-    
-    dTdotdr = zeros(nr,1);
-    for i=2:nr-1
-        dTdotdr(i) = (Tdot(i+1)-Tdot(i-1))/(grid_r(i+1)-grid_r(i-1));
-    end
-    dTdotdr(1) = (Tdot(2)-Tdot(1))/(grid_r(2)-grid_r(1));
-    dTdotdr(nr) = (Tdot(nr)-Tdot(nr-1))/(grid_r(nr)-grid_r(nr-1));
-    
+        
     % 3. Nonlinear loop over pressure.
     % because the ocean pressure depends on the uplift, we make a guess
     % (above). Using this guess, we calculate stresses, strains, and
