@@ -12,7 +12,7 @@ close all;
 use_analytic_temperature = false; % whether to solve the energy equation or use an analytic solution (true)
 
 % Numerical parameters
-nr = 101; % number of grid points
+nr = 401; % number of grid points
 relaxation_parameter=.05; % used in nonlinear loop.
 maxiter=300;
 % Define physical constants and parameters
@@ -49,7 +49,7 @@ cooling_age = @(zm) (zm/2/lam1)^2/kappa;
 initial_cooling_age = cooling_age(initial_thickness);
 zm = @(t) 2*lam1*sqrt(kappa*t);
 dTdt = @(z,t) -(Tb-Ts)/erf(lam1)*exp(-z.^2/4/kappa/t).*z/(2*sqrt(pi*kappa*t^3));
-stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts
+stefan_T = @(z,t)  erf( (z)/2./sqrt(kappa*t) )/erf(lam1)*(Tb-Ts)+Ts;
 % If solving the energy equation, we need the right value of L
 % corresponding to lam1 = 0.65
 Lf = exp(-lam1^2)/lam1/erf(lam1) * Cp*(Tb-Ts)/sqrt(pi);% Turcotte and Schubert Equation 4.141
@@ -183,6 +183,19 @@ while time < t_end
         %     Tdot(:) = dTdt(Ro-new_grid_r,initial_cooling_age+time+dt);
         %     T = T_last + Tdot*dt;
         T = stefan_T( Ro-new_grid_r',initial_cooling_age+time+dt);
+        
+        dTdr_b = (T(2)-Tb)/(grid_r(2)-grid_r(1));
+        Tdot = (T-T_last)/dt;
+        Tdot(1) = dTdr_b*delta_rb/dt;
+        dTdotdr = zeros(nr,1);
+        for i=2:nr-1
+            dTdotdr(i) = (Tdot(i+1)-Tdot(i-1))/(grid_r(i+1)-grid_r(i-1));
+        end
+        dTdotdr(nr) = (0-Tdot(nr-1))/(grid_r(nr)-grid_r(nr-1));
+        %         dTdotdr(1)  = (Tdot(2)-Tdot(1))/(grid_r(2)-grid_r(1)); % First-order approximation at i=1
+        dr1 = grid_r(2)-grid_r(1);
+        dTdotdr(1) = 1/dr1*(2*(Tdot(2)-Tdot(1)) - (Tdot(3)-Tdot(1))/2); % 2nd order approximation to dTdr using a right-weighted stencil.
+        
     else
         Tg = Tb-(T_last(2)-Tb);
         dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));

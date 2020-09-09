@@ -6,7 +6,7 @@ addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [65,128,256,512,1024];
+nrs = [256];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
@@ -55,7 +55,7 @@ for inr=1:length(nrs)
     fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
     fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
     % set end time and grid resolution
-    t_end = 5e7*seconds_in_year;
+    t_end = 5e8*seconds_in_year;
     % dt = 1e4*seconds_in_year; % time step in seconds
     dtmax = 1e5*seconds_in_year;
     dtmin = 1e2*seconds_in_year;
