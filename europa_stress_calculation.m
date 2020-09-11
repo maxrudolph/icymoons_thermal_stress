@@ -1,12 +1,12 @@
 % Script to solve coupled ice shell thermal and stress evolution
 % Max Rudolph, March 19, 2020
 clear;
-close all;
+% close all;
 addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [256];
+nrs = [512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
@@ -21,9 +21,9 @@ for inr=1:length(nrs)
     H=0; % internal heating rate.
     Tb=270;
     Ts=100;
-    Ro = 1.561e6;             % outer radius of ice shell (m)
+    Ro = 1.561e6;          % outer radius of ice shell (m)
     Ri = Ro-2.4e3;         % inner radius of ice shell (m)
-    Rc = Ro-1.3e5;             % core radius (m)
+    Rc = Ro-1.3e5;         % core radius (m)
     % Elastic and Viscous properties
     E = 5e9;        % shear modulus of ice (Pa)
     nu = 0.3;      % Poisson ratio of ice (-)
@@ -36,7 +36,9 @@ for inr=1:length(nrs)
     mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
     % Failure criterion:
     g = 1.3;        % used to plot a failure curve
-    tensile_strength = 1e6; % tensile strength, Pa
+    tensile_strength = 1e99; % tensile strength, Pa
+    cohesion = 1e6;  % plastic yield strength
+    friction = 0.6; % friction angle for plastic yielding
     % Thermal properties
     Cp = 2100; %heat capacity of ice J/kg/K
     Lf = 334*1000; % latent heat of fusion (J/kg)
@@ -46,16 +48,15 @@ for inr=1:length(nrs)
     % Basal heating model - depends on thickness and transport properties
     %
     Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
-    perturbation_period = 1.0e7*seconds_in_year;
+    perturbation_period = 1.0e8*seconds_in_year;
     deltaQonQ = 0.5; % fractional perturbation to Q0.
-    Qbelow = @(time) Q0*(1+deltaQonQ*sin(2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
-    Qbelow = @(time) 0.0;
+    Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
     
     % calculate maxwell time at 100, 270
     fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
     fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
     % set end time and grid resolution
-    t_end = 5e8*seconds_in_year;
+    t_end = 3*perturbation_period;
     % dt = 1e4*seconds_in_year; % time step in seconds
     dtmax = 1e5*seconds_in_year;
     dtmin = 1e2*seconds_in_year;
@@ -64,8 +65,8 @@ for inr=1:length(nrs)
     plot_interval = t_end;
     save_interval = 1e4*seconds_in_year;
     %     save_depths = [0 0.5 1 1.5 2 2.5]*1000;
-    save_depths = linspace(0,2500,100);
-    nsave = ceil(t_end/save_interval) + 1; 
+    save_depths = linspace(0,5000,200);
+    nsave = ceil(t_end/save_interval) + 1;
     nsave_depths = length(save_depths);
     sigma_t_store = zeros(nsave_depths,nsave);
     
@@ -161,10 +162,10 @@ for inr=1:length(nrs)
         dt = dtmax;
         Tg = Tb-(T_last(2)-Tb);
         dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
-        qb = -k*dTdr_b_last;        
+        qb = -k*dTdr_b_last;
         qb_net = qb - Qbelow(time+dt); % first term is conducted heat. second term is heat supplied from below.
         
-        % determine the timestep        
+        % determine the timestep
         if abs(qb_net/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
             dt = abs( (grid_r(2)-grid_r(1))/2/(qb_net/Lf/rho_i) );
         end
@@ -184,12 +185,12 @@ for inr=1:length(nrs)
         
         new_grid_r = linspace(Ri-z,Ro,nr);
         dTdr_last = (T_last(2)-Tb)/(grid_r(2)-grid_r(1));
-        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);        
+        [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
         grid_r = new_grid_r; % end interpolation step
-
+        
         % 2. form discrete operators and solve the heat equation
         [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb);
-                
+        
         % 3. Nonlinear loop over pressure.
         % because the ocean pressure depends on the uplift, we make a guess
         % (above). Using this guess, we calculate stresses, strains, and
@@ -197,46 +198,106 @@ for inr=1:length(nrs)
         % of radial displacement. We continue until the pressure used in the
         % calculations has converged to the pressure consistent with the
         % calculated displacement;
+        converged = false;
         for iter=1:maxiter
             if iter>1
                 Pex = Pex + relaxation_parameter*(Pex_post-Pex);
             else
                 Pex = Pex_last;
             end
-            
-            % calculate viscosity at each node
-            mu_node = zeros(nr,1);
-            for i=1:nr
-                mu_node(i) = mu(T(i));
+            if iter==1
+                maxplast=1;
+            else
+                maxplast=10;
             end
-            
-            [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
-            
-            % 5. Calculate the strains
-            dT = T-T_last;
-            dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
-            dT(1) = delta_rb*dTdr_b;
-            
-            dsigma_t = sigma_t - sigma_t_last;
-            dsigma_r = sigma_r - sigma_r_last;
-            
-            de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
-            de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
-            er = er_last + de_r;
-            et = et_last + de_t;
-            ur = grid_r'.*et; %radial displacement
-            % re-calculate excess pressure using new uplift
-            Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
-            %             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
-            
+            for itplast=1:maxplast % inner iterations over plastic yielding.
+                % calculate viscosity at each node
+                if itplast == 1
+                    mu_node = zeros(nr,1);
+                    for i=1:nr
+                        mu_node(i) = mu(T(i));
+                    end
+                    yield = false(size(mu_node));
+                end
+                
+                [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
+                
+                % 5. Calculate the strains
+                dT = T-T_last;
+                dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
+                dT(1) = delta_rb*dTdr_b;
+                
+                dsigma_t = sigma_t - sigma_t_last;
+                dsigma_r = sigma_r - sigma_r_last;
+                
+                de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
+                de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
+                er = er_last + de_r;
+                et = et_last + de_t;
+                ur = grid_r'.*et; %radial displacement
+                
+                ei = 2*de_t + de_r;
+                de_tD = de_t - 1/3*ei;
+                de_rD = de_r - 1/3*ei;
+                eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) );
+                
+                % re-calculate excess pressure using new uplift
+                Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
+                %             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
+                
+                % calculate the second deviatoric stress invariant
+                P = 1/3*(sigma_r + 2*sigma_t);
+                Plith = g*rho_i*(Ro-grid_r)';
+                Ptot = Plith-P; % compression is negative in sigma and P.
+                sigma_t_tot = sigma_t - Ptot;
+                J2 = 0.5*(sigma_rD.^2 + 2.0*sigma_tD.^2);
+                this_yield_strength = cohesion + friction*Ptot;
+                this_yield_strength(Ptot<0) = cohesion;
+                % plastic yielding criterion.
+                currently_yielding = sqrt(J2) > this_yield_strength;
+                yield = yield | currently_yielding;
+                %             mu_node(yield) = mu_node(yield).*(1-log(sqrt(J2(yield))-this_yield_strength(yield))./log(this_yield_strength(yield)));
+                mu_last = mu_node(yield);
+                mu_node(yield) = min(mu(T(yield)), exp(0.5*(log(mu_last) + log(this_yield_strength(yield)/2./eiiD(yield)))));
+                mu_T = mu(T(yield));
+                mu_node(yield) = max(mu_node(yield), mu_T/100);% limit plastic weakening
+                mu_node(~yield) = mu(T(~yield));
+%                 if any( (sqrt(J2(yield))-this_yield_strength(yield))./this_yield_strength(yield) > .01 )
+                yielded = yield & ~currently_yielding;
+                
+                if any( (this_yield_strength(yielded) - sqrt(J2(yielded)))./this_yield_strength(yielded) > .01 ) || ...
+                   any( (sqrt(J2(currently_yielding))-this_yield_strength(currently_yielding))./this_yield_strength(currently_yielding) > .01 )
+                    
+%                 if any(yield)
+%                     figure(99)
+%                     subplot(2,1,1);
+%                     hold on
+%                     plot(iter,this_yield_strength(yield),'rx')
+%                     plot(iter,sqrt(J2(yield)),'b.');
+%                     subplot(2,1,2);
+%                     plot(iter,(sqrt(J2(yield))-this_yield_strength(yield))./this_yield_strength(yield),'kx');hold on;
+%                     drawnow();
+                    converged = false;
+                    fprintf('Plastic iteration %d, Pex %e Pex_post %e\n',itplast,Pex,Pex_post);
+%                     mu_node(yield)'
+%                     find(yield)'
+                    mu_last = mu_node;
+                else
+                    converged = true;
+                end
+                if converged
+                    break;
+                end
+            end
             % check for convergence
-            if abs( Pex_post-Pex )/abs(Pex) < 1e-3
+            if abs( Pex_post-Pex )/abs(Pex) < 1e-3 
                 fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                 break;
             elseif iter==maxiter
                 error('Nonlinear loop failed to converge');
             end
         end%end nonlinear loop
+        
         if max(abs(diff(ur))) > 1000
             figure();
             plot(1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))); hold on
@@ -249,7 +310,7 @@ for inr=1:length(nrs)
         
         % 5. Determine whether tensile failure has occurred
         failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
-        if( any(failure))
+        if(any(failure))
             disp(['Failure criterion has been reached']);
             idx_shallow = find(failure,1,'last');
             idx_deep = find(failure,1,'first');
@@ -259,6 +320,18 @@ for inr=1:length(nrs)
             failure_occurred = failure_occurred + 1;
             failure_times(inr) = time/seconds_in_year/1e6;
             failure_thickness(inr) = z;
+            % check to see if a crack could propagate
+            sigma_t_tot = sigma_t - rho_i*g*(Ro-grid_r');
+            tmp = cumtrapz( grid_r,sigma_t_tot );
+            net_tension = tmp(end);
+            figure();
+            plot(sigma_t_tot,grid_r);
+            
+            if net_tension > 0
+                disp('Crack could potentially reach ocean');
+            else
+                disp('Crack arrested');
+            end
         end
         
         % 6. advance to next time step and plot (if needed)
@@ -316,11 +389,11 @@ for inr=1:length(nrs)
             last_store = time; isave = isave+1;
         end
     end
-    %%   
+    %%
     mask = 1:(isave-1);
     figure();
     
-    subplot(3,1,1);    
+    subplot(3,1,1);
     plot(results.time(mask)/seconds_in_year,results.z(mask))
     ylabel('Amount of freezing (m)');
     subplot(3,1,2);
@@ -333,6 +406,26 @@ for inr=1:length(nrs)
     subplot(3,1,3);
     plot(results.time(mask)/seconds_in_year,results.Pex(mask));
     ylabel('Overpressure (Pa)');
+    
+    %% Pseudocolor stress plot
+    figure();
+    subplot(2,1,1);
+    pcolor(results.time(mask)/seconds_in_year,save_depths/1000,results.sigma_t(:,mask)); shading flat;
+    hold on
+    plot(results.time(mask)/seconds_in_year,((Ro-Ri)+results.z(mask))/1000,'Color','k','LineWidth',1);
+    set(gca,'YDir','reverse');
+    ax1 = gca();
+    hcb = colorbar();
+    hcb.Label.String = 'Tensile Stress (Pa)';
+    xlabel('Time (years)');
+    ylabel('Depth (km)');
+    subplot(2,1,2);
+    plot(results.time(mask)/seconds_in_year,results.Pex(mask));
+    ylabel('Ocean overpressure (Pa)');
+    ax2 = gca();
+    ax2.Position(3) = ax1.Position(3);
+    ax2.XLim = ax1.XLim;
+    
 end
 %% add legends
 for i=1:length(plot_times)
@@ -342,6 +435,8 @@ figure( fig1a.h );
 axis(fig1a.ax(1));
 legend(labels,'Location','southeast','AutoUpdate','off');
 plot(fig1a.ax(1),(Ro-grid_r)/1e3,(tensile_strength + rho_i*g*(Ro-grid_r))/1e6,'k');
+
+
 
 %% Nimmo's figure 1b
 figure(fig1a.h);
