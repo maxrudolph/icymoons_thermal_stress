@@ -26,7 +26,7 @@ for inr=1:length(nrs)
     Rc = Ro-1.3e5;         % core radius (m)
     % Elastic and Viscous properties
     E = 5e9;        % shear modulus of ice (Pa)
-    nu = 0.3;      % Poisson ratio of ice (-)
+    nu = 0.3;       % Poisson ratio of ice (-)
     beta_w = 4e-10; % Compressibility of water (1/Pa)
     alpha_l = 1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
     rho_i=900;      % density of ice (kg/m^3)
@@ -36,8 +36,8 @@ for inr=1:length(nrs)
     mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
     % Failure criterion:
     g = 1.3;        % used to plot a failure curve
-    tensile_strength = 1e99; % tensile strength, Pa
-    cohesion = 1e6;  % plastic yield strength
+    tensile_strength = 3e6; % tensile strength, Pa
+    cohesion = 1e9;  % plastic yield strength
     friction = 0.6; % friction angle for plastic yielding
     % Thermal properties
     Cp = 2100; %heat capacity of ice J/kg/K
@@ -205,92 +205,39 @@ for inr=1:length(nrs)
             else
                 Pex = Pex_last;
             end
-            if iter==1
-                maxplast=1;
-            else
-                maxplast=10;
-            end
-            for itplast=1:maxplast % inner iterations over plastic yielding.
-                % calculate viscosity at each node
-                if itplast == 1
-                    mu_node = zeros(nr,1);
-                    for i=1:nr
-                        mu_node(i) = mu(T(i));
-                    end
-                    yield = false(size(mu_node));
-                end
-                
-                [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
-                
-                % 5. Calculate the strains
-                dT = T-T_last;
-                dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
-                dT(1) = delta_rb*dTdr_b;
-                
-                dsigma_t = sigma_t - sigma_t_last;
-                dsigma_r = sigma_r - sigma_r_last;
-                
-                de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
-                de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
-                er = er_last + de_r;
-                et = et_last + de_t;
-                ur = grid_r'.*et; %radial displacement
-                
-                ei = 2*de_t + de_r;
-                de_tD = de_t - 1/3*ei;
-                de_rD = de_r - 1/3*ei;
-                eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) );
-                
-                % re-calculate excess pressure using new uplift
-                Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));% ur_last because we don't yet know the uplift
-                %             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
-                
-                % calculate the second deviatoric stress invariant
-                P = 1/3*(sigma_r + 2*sigma_t);
-                Plith = g*rho_i*(Ro-grid_r)';
-                Ptot = Plith-P; % compression is negative in sigma and P.
-                sigma_t_tot = sigma_t - Ptot;
-                J2 = 0.5*(sigma_rD.^2 + 2.0*sigma_tD.^2);
-                this_yield_strength = cohesion + friction*Ptot;
-                this_yield_strength(Ptot<0) = cohesion;
-                % plastic yielding criterion.
-                currently_yielding = sqrt(J2) > this_yield_strength;
-                yield = yield | currently_yielding;
-                %             mu_node(yield) = mu_node(yield).*(1-log(sqrt(J2(yield))-this_yield_strength(yield))./log(this_yield_strength(yield)));
-                mu_last = mu_node(yield);
-                mu_node(yield) = min(mu(T(yield)), exp(0.5*(log(mu_last) + log(this_yield_strength(yield)/2./eiiD(yield)))));
-                mu_T = mu(T(yield));
-                mu_node(yield) = max(mu_node(yield), mu_T/100);% limit plastic weakening
-                mu_node(~yield) = mu(T(~yield));
-%                 if any( (sqrt(J2(yield))-this_yield_strength(yield))./this_yield_strength(yield) > .01 )
-                yielded = yield & ~currently_yielding;
-                
-                if any( (this_yield_strength(yielded) - sqrt(J2(yielded)))./this_yield_strength(yielded) > .01 ) || ...
-                   any( (sqrt(J2(currently_yielding))-this_yield_strength(currently_yielding))./this_yield_strength(currently_yielding) > .01 )
-                    
-%                 if any(yield)
-%                     figure(99)
-%                     subplot(2,1,1);
-%                     hold on
-%                     plot(iter,this_yield_strength(yield),'rx')
-%                     plot(iter,sqrt(J2(yield)),'b.');
-%                     subplot(2,1,2);
-%                     plot(iter,(sqrt(J2(yield))-this_yield_strength(yield))./this_yield_strength(yield),'kx');hold on;
-%                     drawnow();
-                    converged = false;
-                    fprintf('Plastic iteration %d, Pex %e Pex_post %e\n',itplast,Pex,Pex_post);
-%                     mu_node(yield)'
-%                     find(yield)'
-                    mu_last = mu_node;
-                else
-                    converged = true;
-                end
-                if converged
-                    break;
-                end
-            end
+            
+            % calculate viscosity at each node
+            
+            mu_node = zeros(nr,1);
+            mu_node(:) = mu(T);
+            
+            [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
+            
+            % 5. Calculate the strains
+            dT = T-T_last;
+            dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
+            dT(1) = delta_rb*dTdr_b;
+            
+            dsigma_t = sigma_t - sigma_t_last;
+            dsigma_r = sigma_r - sigma_r_last;
+            
+            de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
+            de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
+            er = er_last + de_r;
+            et = et_last + de_t;
+            ur = grid_r'.*et; %radial displacement
+            
+            ei = 2*de_t + de_r;
+            de_tD = de_t - 1/3*ei;
+            de_rD = de_r - 1/3*ei;
+            eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) );
+            
+            % re-calculate excess pressure using new uplift
+            Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
+            %             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);      
+            
             % check for convergence
-            if abs( Pex_post-Pex )/abs(Pex) < 1e-3 
+            if abs( Pex_post-Pex )/abs(Pex) < 1e-3
                 fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                 break;
             elseif iter==maxiter
@@ -298,7 +245,9 @@ for inr=1:length(nrs)
             end
         end%end nonlinear loop
         
+        
         if max(abs(diff(ur))) > 1000
+            % a discontinuity has developed
             figure();
             plot(1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))); hold on
             plot(alpha_l*dT);
@@ -317,20 +266,31 @@ for inr=1:length(nrs)
             fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
             fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
             fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
-            failure_occurred = failure_occurred + 1;
+%             failure_occurred = failure_occurred + 1;
             failure_times(inr) = time/seconds_in_year/1e6;
             failure_thickness(inr) = z;
             % check to see if a crack could propagate
             sigma_t_tot = sigma_t - rho_i*g*(Ro-grid_r');
-            tmp = cumtrapz( grid_r,sigma_t_tot );
-            net_tension = tmp(end);
-            figure();
-            plot(sigma_t_tot,grid_r);
             
+            depth = flip(Ro-grid_r);
+            tmp = cumtrapz( depth,flip(sigma_t_tot) );
+            ind = find(tmp>=0,1,'last');
+            cdepth = depth(ind); % depth at which crack stops
+            
+            net_tension = tmp(1);
+%             figure();
+%             plot(sigma_t_tot,grid_r);
+
             if net_tension > 0
                 disp('Crack could potentially reach ocean');
             else
-                disp('Crack arrested');
+                tmp = find(Ro-grid_r > cdepth,1,'last');
+                fprintf('Crack arrested. Relieving stresses above %e m\n',cdepth);
+                
+%                 sigma_r(tmp:end) = 0;%sigma_r(tmp);
+%                 sigma_t(tmp:end) = 0;
+                failure_mask = false(size(sigma_r));
+                failure_mask(tmp:end) = true;
             end
         end
         
