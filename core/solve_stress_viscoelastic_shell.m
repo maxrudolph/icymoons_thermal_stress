@@ -65,7 +65,7 @@ for i=1:nr
         m1row(ind1) = i; m1col(ind1) = i;   m1val(ind1) = coef_center; ind1 = ind1 + 1;
         %         M1(i,i-1) = coef_minus-coef_plus;
         %         M1(i,i)   = coef_center;
-        R(i) = R(i) - 2*coef_plus*0;
+        R(i) = R(i) - 2*coef_plus*0 + 2*coef_plus*sigma_r_last(nr);
     else
         m1row(ind1) = i; m1col(ind1) = i-1; m1val(ind1) = coef_minus;  ind1 = ind1+1;
         m1row(ind1) = i; m1col(ind1) = i;   m1val(ind1) = coef_center; ind1 = ind1+1;
@@ -85,6 +85,7 @@ for i=1:nr
     end
     if i == nr
         mu_ghost = exp( log(mu(i)) + ( log(mu(i))-log(mu(i-1)) ) );
+        %         mu_ghost = exp(mean(log([mu(i-1) mu(i)])));
         mu_A = exp(mean(log([mu_ghost mu(i)])));
     else
         mu_A = exp(mean(log([mu(i) mu(i+1)]))); % viscosity halfway between nodes i,i+1
@@ -163,6 +164,7 @@ sigma_g = 0 - (sigma_r(nr-1) - 0);
 dsrdr(nr) = (sigma_g-sigma_r(nr-1))/2/(grid_r(nr)-grid_r(nr-1));
 
 sigma_t = sigma_r+(grid_r'/2).*dsrdr;
+sigma_t(end) = 0 + grid_r(end)/2 * dsrdr(end);
 
 %deviatoric stresses, from Hillier and Squyres (1991) equations A8-9
 sigma_tD =  grid_r'/6.*dsrdr;

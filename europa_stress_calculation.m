@@ -149,6 +149,9 @@ for inr=1:length(nrs)
     last_store = time; isave = isave+1;
     
     failure_occurred = 0;
+    failure_mask = false(size(grid_r)); % stores whether failure occurred
+    failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
+    
     while time < t_end && ~failure_occurred
         % In each timestep, we do the following
         % 1. Calculate the amount of basal freeze-on and advance the mesh
@@ -173,6 +176,10 @@ for inr=1:length(nrs)
             dt = dtmin;
             disp('Setting dt = dtmin');
         end
+        if any(failure_mask)
+            dt = dtmin;
+        end
+        
         qb_net = qb - Qbelow(time+dt);
         
         % thickening would be dx/dt = qb/(L*rho_i)
@@ -207,9 +214,12 @@ for inr=1:length(nrs)
             end
             
             % calculate viscosity at each node
-            
             mu_node = zeros(nr,1);
             mu_node(:) = mu(T);
+            % reduce maxwell time in region experiencing failure
+            if( any(failure_mask) )
+                mu_node(failure_mask) = min(mu_node(failure_mask),0.1*E*dt);  % timestep = 10x(maxwell time)
+            end
             
             [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
             
@@ -234,19 +244,24 @@ for inr=1:length(nrs)
             
             % re-calculate excess pressure using new uplift
             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
-            %             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);      
+%             fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
             
             % check for convergence
             if abs( Pex_post-Pex )/abs(Pex) < 1e-3
                 fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
-                break;
+                converged = true;
             elseif iter==maxiter
                 error('Nonlinear loop failed to converge');
+            end
+            
+            
+            if converged
+                break;
             end
         end%end nonlinear loop
         
         
-        if max(abs(diff(ur))) > 1000
+        if max(abs(diff(ur))) > 10
             % a discontinuity has developed
             figure();
             plot(1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))); hold on
@@ -254,6 +269,7 @@ for inr=1:length(nrs)
             plot(dt/2*(sigma_tD./mu_node));
             legend('elastic','thermal','viscous');
             keyboard
+            close();
         end
         
         
@@ -266,32 +282,56 @@ for inr=1:length(nrs)
             fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
             fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
             fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
-%             failure_occurred = failure_occurred + 1;
+            %             failure_occurred = failure_occurred + 1;
             failure_times(inr) = time/seconds_in_year/1e6;
             failure_thickness(inr) = z;
-            % check to see if a crack could propagate
+            % check to see if a crack could propagate to surface
+            % 1. Find the midpoint of the crack
+            % 2. Look upward - balance stresses on crack in upward
+            % direction
+            % 3. If crack reached surface, balance stresses on entire
+            % crack. Otherwise balance stresses in downward direction.
             sigma_t_tot = sigma_t - rho_i*g*(Ro-grid_r');
-            
-            depth = flip(Ro-grid_r);
-            tmp = cumtrapz( depth,flip(sigma_t_tot) );
-            ind = find(tmp>=0,1,'last');
-            cdepth = depth(ind); % depth at which crack stops
-            
-            net_tension = tmp(1);
-%             figure();
-%             plot(sigma_t_tot,grid_r);
-
-            if net_tension > 0
-                disp('Crack could potentially reach ocean');
+            depth = Ro-grid_r; % depth will be in descending order, i.e. deepest first
+            midpoint_depth = mean(depth([idx_shallow idx_deep]));
+            [~,midpoint_ind] = max( sigma_t_tot );
+            stress_above = cumtrapz( grid_r(midpoint_ind:end), sigma_t_tot(midpoint_ind:end) );  % integrate in upward direction
+            stress_below = cumtrapz( depth(midpoint_ind:-1:1), sigma_t_tot(midpoint_ind:-1:1) ); % integrate in downward direction
+            if stress_above(end) >= 0
+                disp('Crack reached surface');
+                surface_failure = true;
+                above_stress_integral = stress_above(end);
+                net_tension = above_stress_integral + stress_below;
+                % find depth at which crack stops
+                ind = find(net_tension > 0,1,'last'); % net tension is ordered by increasing depth
+                depth_tmp = depth(midpoint_ind:-1:1);
+                max_depth = depth_tmp(ind); % depth at which crack stops
+                min_depth = 0;
+                if net_tension > 0
+                    disp('Crack could potentially reach ocean');
+                end
             else
-                tmp = find(Ro-grid_r > cdepth,1,'last');
-                fprintf('Crack arrested. Relieving stresses above %e m\n',cdepth);
-                
-%                 sigma_r(tmp:end) = 0;%sigma_r(tmp);
-%                 sigma_t(tmp:end) = 0;
-                failure_mask = false(size(sigma_r));
-                failure_mask(tmp:end) = true;
+                disp('Crack cannot reach surface');
+                surface_failure = false;
+                % find location where integral of stress is zero in upward
+                % direction
+                ind = find( stress_above > 0,1,'last');
+                depth_tmp = depth(midpoint_ind:end);
+                min_depth = depth_tmp(ind);
+                % find depth at which crack stops
+                ind = find(stress_below > 0,1,'last'); % net tension is ordered by increasing depth
+                depth_tmp = depth(midpoint_ind:-1:1);
+                max_depth = depth_tmp(ind);
             end
+            fprintf('Relieving stresses between %e-%e m\n',min_depth,max_depth);
+            failure_mask = depth >= min_depth & depth <= max_depth;
+            
+            %                 failure_mask = false(size(sigma_r));
+            %                 failure_mask(failure) = true;
+            failure_time(failure_mask) = time;
+        else
+            no_longer_failing = (time - failure_time) >= 10*dtmin;
+            failure_mask(no_longer_failing) = false;
         end
         
         % 6. advance to next time step and plot (if needed)
