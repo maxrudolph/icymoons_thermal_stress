@@ -1,12 +1,12 @@
 % Script to solve coupled ice shell thermal and stress evolution
 % Max Rudolph, March 19, 2020
 clear;
-% close all;
+close all;
 addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [512];
+nrs = 512;%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
@@ -218,19 +218,33 @@ for inr=1:length(nrs)
             mu_node(:) = mu(T);
             % reduce maxwell time in region experiencing failure
             if( any(failure_mask) )
-                mu_node(failure_mask) = min(mu_node(failure_mask),0.1*E*dt);  % timestep = 10x(maxwell time)
+                minimum_viscosity_prefactor = 0.00; % maximum allowable fractional reduction in viscosity
+                mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
+                for i=1:3
+                tmp = exp(smooth(log( mu_node )));
+                mu_node(~failure_mask) = tmp(~failure_mask);
+                end
+%                 mu_node = exp(smooth(log( mu_node )));
             end
             
             [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
             
             % 5. Calculate the strains
             dT = T-T_last;
-            dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
+            dr1 = grid_r(2)-grid_r(1);
+            dr2 = grid_r(3)-grid_r(1);
+            L = [0 0 1;
+                 dr1^2 dr1 1;
+                 dr2^2 dr2 1];
+            R = T(1:3);
+            coef = L\R;
+            dTdr_b = coef(2);
+%             dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
             dT(1) = delta_rb*dTdr_b;
             
             dsigma_t = sigma_t - sigma_t_last;
             dsigma_r = sigma_r - sigma_r_last;
-            
+%             mu_node(2:end-1) = exp(0.5*(log(mu_node(1:end-2))+log(mu_node(3:end))));
             de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
             de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
             er = er_last + de_r;
@@ -261,7 +275,7 @@ for inr=1:length(nrs)
         end%end nonlinear loop
         
         
-        if max(abs(diff(ur))) > 10
+        if max(abs(diff(ur))) > 100
             % a discontinuity has developed
             figure();
             plot(1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))); hold on

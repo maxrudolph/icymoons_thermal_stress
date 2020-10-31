@@ -158,13 +158,32 @@ for i=2:nr-1
     dr = grid_r(i+1)-grid_r(i-1);
     dsrdr(i) = (sigma_r(i+1)-sigma_r(i-1))/dr;
 end
-sigma_g = Pex - (sigma_r(2) - Pex);
-dsrdr(1) =  (sigma_r(2)-sigma_g)/2/(grid_r(2)-grid_r(1)); % special formula using ghost value
-sigma_g = 0 - (sigma_r(nr-1) - 0);
-dsrdr(nr) = (sigma_g-sigma_r(nr-1))/2/(grid_r(nr)-grid_r(nr-1));
+% calculate a quadratic interpolation at the surface
+dr1 = grid_r(nr-1)-grid_r(nr-2);
+dr2 = grid_r(nr)-grid_r(nr-2);
+L = [0 0 1;
+    dr1^2 dr1 1;
+    dr2^2 dr2 1];
+R = sigma_r(end-2:end);
+coef = L\R;
+dsrdr(nr) = 2*coef(1)*(grid_r(nr)-grid_r(nr-2)) + coef(2);
+% quadratic interpolation at the ocean-ice interface
+dr1 = grid_r(2)-grid_r(1);
+dr2 = grid_r(3)-grid_r(1);
+L = [0 0 1;
+     dr1^2 dr1 1;
+     dr2^2 dr2 1];
+R = sigma_r(1:3);
+coef = L\R;
+dsrdr(1) = 0 + coef(2);
+
+% sigma_g = Pex - (sigma_r(2) - Pex);
+% dsrdr(1) =  (sigma_r(2)-sigma_g)/2/(grid_r(2)-grid_r(1)); % special formula using ghost value
+% sigma_g = 0 - (sigma_r(nr-1) - 0);
+% dsrdr(nr) = (sigma_g-sigma_r(nr-1))/2/(grid_r(nr)-grid_r(nr-1));
 
 sigma_t = sigma_r+(grid_r'/2).*dsrdr;
-sigma_t(end) = 0 + grid_r(end)/2 * dsrdr(end);
+% sigma_t(end) = 0 + grid_r(end)/2 * dsrdr(end);
 
 %deviatoric stresses, from Hillier and Squyres (1991) equations A8-9
 sigma_tD =  grid_r'/6.*dsrdr;
