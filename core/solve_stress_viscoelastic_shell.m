@@ -181,7 +181,21 @@ dsrdr(1) = 0 + coef(2);
 % dsrdr(1) =  (sigma_r(2)-sigma_g)/2/(grid_r(2)-grid_r(1)); % special formula using ghost value
 % sigma_g = 0 - (sigma_r(nr-1) - 0);
 % dsrdr(nr) = (sigma_g-sigma_r(nr-1))/2/(grid_r(nr)-grid_r(nr-1));
-
+% calculate a quadratic interpolation in the interior
+% figure();
+% plot(dsrdr);
+% hold on
+% for i=2:nr-1
+%     dr1 = grid_r(i-1) - grid_r(i);
+%     dr2 = grid_r(i+1) - grid_r(i);
+%     L = [dr1^2 dr1 1;
+%             0 0 1;
+%          dr2^2 dr2 1];
+%     R = sigma_r(i-1:i+1);
+%     coef = L\R;
+%     dsrdr(i) = coef(2);
+% end
+% plot(dsrdr);
 sigma_t = sigma_r+(grid_r'/2).*dsrdr;
 % sigma_t(end) = 0 + grid_r(end)/2 * dsrdr(end);
 
