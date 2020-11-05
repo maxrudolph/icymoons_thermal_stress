@@ -29,7 +29,7 @@ for inr=1:length(nrs)
     E = 5e9;        % shear modulus of ice (Pa)
     nu = 0.3;       % Poisson ratio of ice (-)
     beta_w = 4e-10; % Compressibility of water (1/Pa)
-    alpha_l = 0*1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+    alpha_l = 1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
     rho_i=900;      % density of ice (kg/m^3)
     rho_w=1000;     % density of water (kg/m^3)
     Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
@@ -51,7 +51,7 @@ for inr=1:length(nrs)
     Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
     perturbation_period = 1.0e8*seconds_in_year;
     deltaQonQ = 1.0; % fractional perturbation to Q0.
-    Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
+    Qbelow = @(time) Q0*(1+deltaQonQ*cos(-2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
     
     % calculate maxwell time at 100, 270
     fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
@@ -84,6 +84,8 @@ for inr=1:length(nrs)
     results.failure_P = zeros(1,nsave);
     results.failure_dP = zeros(1,nsave);
     results.failure_thickness = zeros(1,nsave);
+    results.failure_top = zeros(1,nsave);
+    results.failure_bottom = zeros(1,nsave);
     
     % set up the grid
     grid_r = linspace(Ri,Ro,nr); % set up the grid
@@ -355,6 +357,8 @@ for inr=1:length(nrs)
             results.failure_thickness(ifail) = max_depth-min_depth;
             results.failure_time(ifail) = time/seconds_in_year/1e6;
             results.failure_P(ifail) = Pex;
+            results.failure_top(ifail) = min_depth;
+            results.failure_bottom(ifail) = max_depth;
             ifail = ifail + 1;
            
             failure_mask = depth >= min_depth & depth <= max_depth;
@@ -460,6 +464,10 @@ for inr=1:length(nrs)
     hcb.Label.String = 'Tensile Stress (Pa)';
     xlabel('Time (years)');
     ylabel('Depth (km)');
+    hold on;
+    for i=1:ifail-1
+        plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
+    end
     subplot(2,1,2);
     plot(results.time(mask)/seconds_in_year,results.Pex(mask));
     ylabel('Ocean overpressure (Pa)');
@@ -468,7 +476,7 @@ for inr=1:length(nrs)
     ax2.XLim = ax1.XLim;
     hold on
     plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1),'ro');
-    plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1),'g.');
+    plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'g.');
 end
 %% add legends
 for i=1:length(plot_times)
