@@ -12,7 +12,7 @@ failure_thickness = 0*nrs;
 for inr=1:length(nrs)
     ifail = 1; % index into list of times at which failure occurred.
     nr = nrs(inr); % number of grid points
-    relaxation_parameter=1e-4; % used in nonlinear loop.
+    relaxation_parameter=1e-2; % used in nonlinear loop.
     maxiter=1000;
     % Define physical constants and parameters
     % Physical constants
@@ -22,9 +22,9 @@ for inr=1:length(nrs)
     H=0; % internal heating rate.
     Tb=270;
     Ts=100;
-    Ro = 1.561e6;          % outer radius of ice shell (m)
-    Ri = Ro-10.0e3;         % inner radius of ice shell (m)
-    Rc = Ro-1.3e5;         % core radius (m)
+    Ro = 2.52e5;          % outer radius of ice shell (m)
+    Ri = Ro-8.0e3;         % inner radius of ice shell (m)
+    Rc = Ro-1.60e5;         % core radius (m)
     % Elastic and Viscous properties
     E = 5e9;        % shear modulus of ice (Pa)
     nu = 0.3;       % Poisson ratio of ice (-)
@@ -36,7 +36,7 @@ for inr=1:length(nrs)
     mub=1e15;       % basal viscosity (Pa-s)
     mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
     % Failure criterion:
-    g = 1.3;        % used to calculate failure, m/s/s
+    g = 0.113;        % used to calculate failure, m/s/s
     tensile_strength = 3e6; % tensile strength, Pa
     cohesion = 2e7;  % plastic yield strength
     friction = 0.6; % friction angle for plastic yielding
@@ -51,13 +51,13 @@ for inr=1:length(nrs)
     Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
     perturbation_period = 1.0e8*seconds_in_year;
     deltaQonQ = 1.0; % fractional perturbation to Q0.
-    Qbelow = @(time) Q0*(1+deltaQonQ*cos(-2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
-    
+%     Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
+    Qbelow = @(time) 0;
     % calculate maxwell time at 100, 270
     fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
     fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
     % set end time and grid resolution
-    t_end = 3*perturbation_period;
+    t_end = 1e7*seconds_in_year;%  3*perturbation_period;
     % dt = 1e4*seconds_in_year; % time step in seconds
     dtmax = 1e5*seconds_in_year;
     dtmin = 1e1*seconds_in_year;
