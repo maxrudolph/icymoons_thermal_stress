@@ -6,7 +6,7 @@ addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [512];%[512];
+nrs = [256];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
@@ -22,8 +22,8 @@ for inr=1:length(nrs)
     H=0; % internal heating rate.
     Tb=270;
     Ts=100;
-    Ro = 2.52e5;          % outer radius of ice shell (m)
-    Ri = Ro-8.0e3;         % inner radius of ice shell (m)
+    Ro = 2.52e5;            % outer radius of ice shell (m)
+    Ri = Ro-4.0e3;          % inner radius of ice shell (m)
     Rc = Ro-1.60e5;         % core radius (m)
     % Elastic and Viscous properties
     E = 5e9;        % shear modulus of ice (Pa)
@@ -60,7 +60,7 @@ for inr=1:length(nrs)
     t_end = 1e7*seconds_in_year;%  3*perturbation_period;
     % dt = 1e4*seconds_in_year; % time step in seconds
     dtmax = 1e5*seconds_in_year;
-    dtmin = 1e1*seconds_in_year;
+    dtmin = 1e-1*seconds_in_year;
     % dt1 = 3600; % size of first timestep
     % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
     plot_interval = t_end;
@@ -73,9 +73,10 @@ for inr=1:length(nrs)
     
     results.time = zeros(nsave,1);
     results.z = zeros(nsave,1);
+    results.Ri = zeros(nsave,1); results.Ri(1) = Ri;   
     results.qb = zeros(nsave,1);
-    results.sigma_t = zeros(nsave_depths,nsave);
-    results.sigma_r = zeros(nsave_depths,nsave);
+    results.sigma_t = NaN*zeros(nsave_depths,nsave);
+    results.sigma_r = NaN*zeros(nsave_depths,nsave);
     results.Pex = zeros(nsave,1);
     results.dTdr = zeros(nsave_depths,nsave);
     results.T = zeros(nsave_depths,nsave);
@@ -86,6 +87,12 @@ for inr=1:length(nrs)
     results.failure_thickness = zeros(1,nsave);
     results.failure_top = zeros(1,nsave);
     results.failure_bottom = zeros(1,nsave);
+    results.failure_erupted_volume = zeros(1,nsave);
+    results.failure_erupted_volume_pressurechange = zeros(1,nsave);
+    results.failure_erupted_volume_volumechange = zeros(1,nsave);
+    erupted_volume = 0;
+    erupted_volume_pressurechange = 0;
+    erupted_volume_volumechange = 0;
     
     % set up the grid
     grid_r = linspace(Ri,Ro,nr); % set up the grid
@@ -212,8 +219,12 @@ for inr=1:length(nrs)
         % calculations has converged to the pressure consistent with the
         % calculated displacement;
         converged = false;
+        pex_store = zeros(maxiter,1);
+        pexpost_store = zeros(maxiter,1);
         for iter=1:maxiter
-            if iter>1
+            if iter>10
+                Pex = interp1(pexpost_store(1:iter-1)-pex_store(1:iter-1),pex_store(1:iter-1),0,'linear','extrap');
+            elseif iter>1
                 Pex = Pex + relaxation_parameter*(Pex_post-Pex);
             else
                 Pex = Pex_last;
@@ -277,8 +288,7 @@ for inr=1:length(nrs)
             % re-calculate excess pressure using new uplift
             %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
             Pex_post = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
-            
-            %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
+            fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
             
             % check for convergence
             if abs( Pex_post-Pex )/abs(Pex) < 1e-3
@@ -287,8 +297,21 @@ for inr=1:length(nrs)
             elseif iter==maxiter
                 error('Nonlinear loop failed to converge');
             end
-            
-            
+            if all(failure_mask)
+                % Calculate the volume erupted (dP)*beta*V0 + V-V0
+                pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ro^3-Ri^3));
+                volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr
+                erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
+                erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
+                erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
+                Ri = Ri - z;
+                z = 0; 
+                % move the inner radius effectively to the current position
+                % of the base of the ice shell. Then set the amount of
+                % freezing to zero.
+            end
+            pex_store(iter) = Pex;
+            pexpost_store(iter) = Pex_post;
             if converged
                 break;
             end
@@ -378,6 +401,16 @@ for inr=1:length(nrs)
             if any(failure_mask(no_longer_failing))
                 results.failure_dP(ifail-1) = Pex-results.failure_P(ifail-1);
             end
+            if all(failure_mask) && any(failure_mask(no_longer_failing))
+                if erupted_volume > 0
+                    results.failure_erupted_volume(ifail-1) = erupted_volume;
+                    results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
+                    results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
+                end
+                erupted_volume = 0;
+                erupted_volume_volumechange = 0;
+                erupted_volume_pressurechange = 0;
+            end
             failure_mask(no_longer_failing) = false;        
         end
         yielding = eiiD > (cohesion - 1/3*ei*friction); % note that compression is negative
@@ -431,6 +464,7 @@ for inr=1:length(nrs)
             
             results.time(isave) = time;
             results.z(isave) = z;
+            results.Ri(isave) = Ri;
             results.qb(isave) = Qbelow(time);
             results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
             results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
@@ -461,10 +495,12 @@ for inr=1:length(nrs)
     
     %% Pseudocolor stress plot
     figure();
-    subplot(2,1,1);
-    pcolor(results.time(mask)/seconds_in_year,save_depths/1000,results.sigma_t(:,mask)); shading flat;
+    t=tiledlayout(3,1,'TileSpacing','compact','Padding','compact');    
+    nexttile
+    contourf(results.time(mask)/seconds_in_year,save_depths/1000,results.sigma_t(:,mask),64,'Color','none'); %shading flat;
     hold on
-    plot(results.time(mask)/seconds_in_year,((Ro-Ri)+results.z(mask))/1000,'Color','k','LineWidth',1);
+    plot(results.time(mask)/seconds_in_year,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+    set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
     set(gca,'YDir','reverse');
     ax1 = gca();
     hcb = colorbar();
@@ -475,7 +511,7 @@ for inr=1:length(nrs)
     for i=1:ifail-1
         plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
     end
-    subplot(2,1,2);
+    nexttile
     plot(results.time(mask)/seconds_in_year,results.Pex(mask));
     ylabel('Ocean overpressure (Pa)');
     ax2 = gca();
@@ -484,6 +520,24 @@ for inr=1:length(nrs)
     hold on
     plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1),'ro');
     plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'g.');
+    nexttile
+    hold on;
+    for i=1:ifail-1
+        plot(results.failure_time(i)*1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*Ro^2)*[0 1],'b');
+%         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_volumechange(i)/(4*pi*Ro^2),'go');
+%         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_pressurechange(i)/(4*pi*Ro^2),'rx');
+    end
+    ylabel('Erupted volume (m)');
+    xlabel('Time (years)');
+    ax3=gca();
+    ax3.XLim = ax1.XLim;
+    ax3.Position(3) = ax1.Position(3);
+    ax3.Box = 'on';   
+    fig = gcf();
+    fig.PaperUnits = 'centimeters';
+    fig.PaperPosition(3) = 12.00;
+    fig.Color = 'w';
+    exportgraphics(gcf,'test.eps','ContentType','vector');
 end
 %% add legends
 for i=1:length(plot_times)
