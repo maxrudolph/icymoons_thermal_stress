@@ -23,7 +23,7 @@ for inr=1:length(nrs)
     Tb=270;
     Ts=100;
     Ro = 2.52e5;            % outer radius of ice shell (m)
-    Ri = Ro-4.0e3;          % inner radius of ice shell (m)
+    Ri = Ro-1.0e3;          % inner radius of ice shell (m)
     Rc = Ro-1.60e5;         % core radius (m)
     % Elastic and Viscous properties
     E = 5e9;        % shear modulus of ice (Pa)
@@ -160,8 +160,7 @@ for inr=1:length(nrs)
     sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
     time_store(isave) = time;
     last_store = time; isave = isave+1;
-    
-    failure_occurred = 0;
+        
     failure_mask = false(size(grid_r)); % stores whether failure occurred
     failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
     
@@ -338,8 +337,7 @@ for inr=1:length(nrs)
             idx_deep = find(failure,1,'first');
             fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
             fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
-            fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
-            %             failure_occurred = failure_occurred + 1;
+            fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);            
          
             % check to see if a crack could propagate to surface
             % 1. Find the midpoint of the crack
@@ -431,7 +429,7 @@ for inr=1:length(nrs)
         
         time = time + dt;
         
-        if (time >= plot_times(iplot) || time >= t_end || failure_occurred)
+        if (time >= plot_times(iplot) || time >= t_end )
             iplot = iplot+1;
             
             figure(hf);
@@ -458,7 +456,7 @@ for inr=1:length(nrs)
             last_plot_time = time;
             drawnow();
         end
-        if (time-last_store >= save_interval || time >= t_end || failure_occurred)
+        if (time-last_store >= save_interval || time >= t_end || any(failure_mask))
             sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
             time_store(isave) = time;
             
