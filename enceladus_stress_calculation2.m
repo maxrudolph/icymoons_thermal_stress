@@ -6,7 +6,7 @@ addpath core; % this is where the helper functions live.
 
 % Numerical parameters
 
-nrs = [256];%[512];
+nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for inr=1:length(nrs)
