@@ -4,20 +4,32 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
+% Europa
+% parameters = struct();
+% parameters.Tb = 273;
+% parameters.Ts = 100;
+% parameters.g  = 1.30;
+% parameters.Ro = 1.561e6;
+% parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
+% parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
+% parameters.relaxation_parameter = 1e-5;  % europa value
+% parameters.tensile_strength = 3e6;
+% parameters.perturbation_period = 1e7*seconds_in_year;
 
+% Enceladus
 parameters = struct();
 parameters.Tb = 273;
 parameters.Ts = 100;
-parameters.g  = 1.30;
-parameters.Ro = 1.561e6;
-parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
-parameters.Rc = parameters.Ro-1.3e5;     % core radius (m)
-parameters.relaxation_parameter = 1e-5;  % europa value
+parameters.g  = 0.113;
+parameters.Ro = 2.52e5;
+parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
+parameters.relaxation_parameter = 1e-2;  
 parameters.tensile_strength = 3e6;
-parameters.perturbation_period = 1e8*seconds_in_year;
-ndQ = 3;
+parameters.perturbation_period = 1e7*seconds_in_year;
+
+ndQ = 6;
 dQ = linspace(0.1,0.8,ndQ) ;
-nthick = 3;
+nthick = 7;
 thicknesses = linspace(4e3,20e3,nthick);
 all_results = cell(ndQ,nthick);
 all_parameters = cell(ndQ,nthick);
@@ -37,7 +49,7 @@ for ithick=1:nthick
         results = all_results{idQ,ithick};
         parameters = all_parameters{idQ,ithick};
         ifail = find(results.failure_time>0,1,'last');
-        time_mask = results.failure_time >= 1*parameters.perturbation_period;
+        time_mask = results.failure_time >= 1*parameters.perturbation_period/seconds_in_year/1e6;
         % calculate the total volume erupted
         all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );        
     end
