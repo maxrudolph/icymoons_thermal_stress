@@ -66,7 +66,7 @@ dtmin = 1e1*seconds_in_year;
 plot_interval = t_end;
 save_interval = 1e4*seconds_in_year;
 %     save_depths = [0 0.5 1 1.5 2 2.5]*1000;
-save_depths = linspace(0,50000,200);
+save_depths = linspace(0,(parameters.Ro-parameters.Ri) * (1+parameters.deltaQonQ)+1000,200);
 nsave = ceil(t_end/save_interval) + 1;
 nsave_depths = length(save_depths);
 sigma_t_store = zeros(nsave_depths,nsave);
@@ -112,50 +112,10 @@ z_last = 0;    % total amount of thickening
 dzdt_last = 0; % thickening rate
 Pex_last = 0; %initial overpressure
 
-% Set up plot
-hf2=figure();
-
-% plot_times = [0.0 0.1 0.2 0.3 0.4 0.5]*1e6*seconds_in_year; iplot=2;
 plot_times = linspace(0,t_end,5); iplot=2;
-hf=figure();
-subplot(1,4,1); % sigma_r and sigma_t
-h=plot(sigma_r_last,Ro-grid_r); hold on;
-plot(sigma_r_last,Ro-grid_r,'--','Color',h.Color);
-% h=legend('\sigma_r','\sigma_t','Interpreter','tex'); h.AutoUpdate=false;
-title('Stress (Pa)','Interpreter','tex');
-ylabel('r (m)');
-set(gca,'YDir','reverse');
-subplot(1,4,2); % e_r and e_t
-h=plot( sigma_r_last,Ro-grid_r); hold on;
-plot( sigma_r_last,Ro-grid_r,'--','Color',h.Color); hold on;
-% h=legend('r','t'); h.AutoUpdate=false;
-title('Strain (-)','Interpreter','tex');
-set(gca,'YDir','reverse');
-subplot(1,4,3); % temperature
-plot(T_last,Ro-grid_r); hold on; title('T (K)','Interpreter','tex'); set(gca,'YDir','reverse');
-subplot(1,4,4); % radial displacement (u)
-plot(ur_last,Ro-grid_r); hold on; title('u_r');
-set(gca,'YDir','reverse');
-last_plot_time = 0;
 
-fig1a.h = figure(); % Nimmo's Figure 1a
-subplot(2,1,1);
-[ax,h1,h2]=plotyy((Ro-grid_r)/1e3,sigma_t_last/1e6,(Ro-grid_r)/1e3,T_last);
-fig1a.ax = ax;
-h2.Color = h1.Color;
-h2.LineStyle = '--';
-hold(ax(1)); hold(ax(2));
-set(ax,'Xlim',[0 10]);
-set(ax(1),'YLim',[-10 40]);
-set(ax(1),'YTick',[-10:5:40]);
-set(ax(2),'YTick',[100:20:180]);
-set(ax(1),'YTickLabelMode','auto');
-ylabel(ax(1),'Tangential Stress (MPa)');
-xlabel(ax(1),'Depth (km)');
-ylabel(ax(2),'Temperature (K)');
-set(ax(2),'YLim',[100 180]);
-
-time=0; itime=1;
+time=0; 
+itime=1;
 % save initial state
 isave = 1;
 sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
@@ -458,33 +418,6 @@ while time < t_end
     
     time = time + dt;
     
-    if (time >= plot_times(iplot) || time >= t_end )
-        iplot = iplot+1;
-        
-        figure(hf);
-        subplot(1,4,1);
-        h=plot(sigma_r,Ro-grid_r);
-        plot(sigma_t,Ro-grid_r,'--','Color',h.Color);
-        subplot(1,4,2);
-        h=plot(er,Ro-grid_r);
-        plot(et,Ro-grid_r,'--','Color',h.Color);
-        subplot(1,4,3);
-        plot(T,Ro-grid_r);
-        subplot(1,4,4);
-        plot(ur,Ro-grid_r);
-        
-        
-        figure(hf2);
-        plot(ur(end),sigma_t(end),'.'); hold on;
-        
-        figure(fig1a.h); % Nimmo's Figure 1a
-        h=plot(fig1a.ax(1),(Ro-grid_r)/1e3,sigma_t_last/1e6);
-        plot(fig1a.ax(2),(Ro-grid_r)/1e3,T_last,'--','Color',h.Color);
-        
-        
-        last_plot_time = time;
-        drawnow();
-    end
     if (time-last_store >= save_interval || time >= t_end || any(failure_mask))
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         time_store(isave) = time;
@@ -502,13 +435,27 @@ while time < t_end
         last_store = time; isave = isave+1;
     end
 end
-%%
-%% add legends
-for i=1:length(plot_times)
-    labels{i} = sprintf('%.2f Myr',plot_times(i)/seconds_in_year/1e6);
-end
-figure( fig1a.h );
-axis(fig1a.ax(1));
-legend(labels,'Location','southeast','AutoUpdate','off');
-plot(fig1a.ax(1),(Ro-grid_r)/1e3,(tensile_strength + rho_i*g*(Ro-grid_r))/1e6,'k');
-
+%% Trim results structure
+ifail = find(results.failure_time>0,1,'last');
+isave = find(results.time>0,1,'last');
+% general information:
+results.time = results.time(1:isave);
+results.z = results.z(1:isave);
+results.Ri = results.Ri(1:isave,:);
+results.qb = results.qb(1:isave);
+results.sigma_t = results.sigma_t(:,1:isave);
+results.sigma_r = results.sigma_r(:,1:isave);
+results.Pex = results.Pex(1:isave);
+results.sigma_dTdr = results.dTdr(:,1:isave);
+results.T = results.T(:,1:isave);
+results.ur = results.ur(:,1:isave);
+% failure information:
+results.failure_time = results.failure_time(1:ifail);
+results.failure_P = results.failure_P(1:ifail);
+results.failure_dP = results.failure_dP(1:ifail);
+results.failure_thickness = results.failure_thickness(1:ifail);
+results.failure_top = results.failure_top(1:ifail);
+results.failure_bottom = results.failure_bottom(1:ifail);
+results.failure_erupted_volume = results.failure_erupted_volume(1:ifail);
+results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange(1:ifail);
+results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange(1:ifail);

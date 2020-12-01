@@ -14,7 +14,7 @@ parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
 parameters.Rc = parameters.Ro-1.3e5;     % core radius (m)
 parameters.relaxation_parameter = 1e-5;  % europa value
 parameters.tensile_strength = 3e6;
-parameters.perturbation_period = 1e7*seconds_in_year;
+parameters.perturbation_period = 1e8*seconds_in_year;
 ndQ = 3;
 dQ = linspace(0.1,0.8,ndQ) ;
 nthick = 3;
@@ -30,7 +30,18 @@ for idQ = 1:length(dQ)
         all_results{idQ,ithick} = main_cyclic_thermomechanical_model(parameters1);
     end
 end
-%% 
+%% Analyze models
+all_erupted_volume = zeros(size(all_results));
+for ithick=1:nthick
+    for idQ=1:ndQ
+        results = all_results{idQ,ithick};
+        parameters = all_parameters{idQ,ithick};
+        ifail = find(results.failure_time>0,1,'last');
+        time_mask = results.failure_time >= 1*parameters.perturbation_period;
+        % calculate the total volume erupted
+        all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );        
+    end
+end
 
 %% Plotting routines:
 for ithick=1:nthick
