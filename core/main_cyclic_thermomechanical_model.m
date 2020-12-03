@@ -3,39 +3,42 @@ function results = main_cyclic_thermomechanical_model(parameters)
 Ro = parameters.Ro;     % outer radius of ice shell (m)
 Ri = parameters.Ri;     % inner radius of ice shell (m)
 Rc = parameters.Rc;     % core radius (m)
-tensile_strength = parameters.tensile_strength; % tensile strength, Pa
-% perturbation_period = 1.0e8*seconds_in_year;
-perturbation_period = parameters.perturbation_period;
-deltaQonQ = parameters.deltaQonQ; % fractional perturbation to Q0.
-relaxation_parameter=parameters.relaxation_parameter; % used in nonlinear loop.
-g = parameters.g;       % used to calculate failure, m/s/s
+g = parameters.g;       % gravitational acceleration, m/s/s
+tensile_strength = parameters.tensile_strength;     % tensile strength, Pa
+perturbation_period = parameters.perturbation_period; % period of perturbation (s)
+deltaQonQ = parameters.deltaQonQ;   % fractional perturbation to Q0.
+relaxation_parameter=parameters.relaxation_parameter;   % used in nonlinear loop.
+Tb=parameters.Tb;       % Basal temperature (K)
+Ts=parameters.Ts;       % Surface temperature (K)
+t_end = parameters.end_time; % Simulation end time (s)
+save_interval = parameters.save_interval; % Time between saved results (s)
+save_start = parameters.save_start; % Time to begin saving (s)
 
 % Basic physical properties
-rho_i=900;      % density of ice (kg/m^3)
-rho_w=1000;     % density of water (kg/m^3)
+rho_i=900;              % density of ice (kg/m^3)
+rho_w=1000;             % density of water (kg/m^3)
 
 % Thermal properties
-Cp = 2100; %heat capacity of ice J/kg/K
-Lf = 334*1000; % latent heat of fusion (J/kg)
-kappa = 1e-6;% m/s/s
-k=kappa*rho_i*Cp;
-R=8.314e-3;     % in kJ/mol/K
+Cp = 2100;              % heat capacity of ice (J/kg/K)
+Lf = 334*1000;          % latent heat of fusion (J/kg)
+kappa = 1e-6;           % Thermal diffusivity (m/s/s)
+k=kappa*rho_i*Cp;       % Thermal conductivity (W/m/K)
+R=8.314e-3;             % Ideal Gas constant (kJ/mol/K)
 
 % Heating model
 Q0 = k*(parameters.Tb-parameters.Ts)/(parameters.Ro-parameters.Ri);
-Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period)); % a function to specify the heating rate in W/m^2
+% Qbelow is a function that returns the heating rate in W/m^2:
+Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period)); 
 
 % Numerical parameters
-ifail = 1; % index into list of times at which failure occurred.
-nr = 512;
-maxiter=1000;
-% Define physical constants and parameters
+ifail = 1;              % index into list of times at which failure occurred.
+nr = 512;               % Number of nodes in radial direction 
+maxiter=1000;           % Maximum iterations in nonlinear loop
+
 % Physical constants
 seconds_in_year = 3.1558e7;
 % Boundary conditions and internal heating
 H=0; % internal heating rate.
-Tb=parameters.Tb;
-Ts=parameters.Ts;
 
 % Elastic and Viscous properties
 E = 5e9;        % shear modulus of ice (Pa)
@@ -50,23 +53,15 @@ mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s gi
 cohesion = 2e7;  % plastic yield strength
 friction = 0.6; % friction angle for plastic yielding
 
-%
-% Basal heating model - depends on thickness and transport properties
-%
-
 % calculate maxwell time at 100, 270
-fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
-fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
+fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(Ts)/E,mu(Tb)/E);
+fprintf('Thermal diffusion timescale %.2e\n',(Ro-Ri)^2/kappa);
+
 % set end time and grid resolution
-t_end =  4*perturbation_period;
 dtmax = 1e5*seconds_in_year;
 dtmin = 1e1*seconds_in_year;
-% dt1 = 3600; % size of first timestep
-% times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
-plot_interval = t_end;
-save_interval = 1e4*seconds_in_year;
-%     save_depths = [0 0.5 1 1.5 2 2.5]*1000;
-save_depths = linspace(0,(parameters.Ro-parameters.Ri)*(1+parameters.deltaQonQ)*1.25,200);
+
+save_depths = linspace(0,(parameters.Ro-parameters.Ri)/(1-parameters.deltaQonQ)*1.25,200);
 nsave = ceil(t_end/save_interval) + 1;
 nsave_depths = length(save_depths);
 sigma_t_store = zeros(nsave_depths,nsave);
@@ -107,21 +102,20 @@ T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);
 
 er_last = zeros(nr,1); % strains
 et_last = zeros(nr,1);
-ur_last = zeros(nr,1);      % displacement
+ur_last = zeros(nr,1); % displacement
 z_last = 0;    % total amount of thickening
-dzdt_last = 0; % thickening rate
 Pex_last = 0; %initial overpressure
 
-plot_times = linspace(0,t_end,5); iplot=2;
+time=0; % elapsed time
 
-time=0; 
-itime=1;
 % save initial state
 isave = 1;
-sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
-time_store(isave) = time;
-last_store = time; isave = isave+1;
-
+last_store = -Inf;
+if( save_start == 0 )
+    sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
+    time_store(isave) = time;
+    last_store = time; isave = isave+1;
+end
 failure_mask = false(size(grid_r)); % stores whether failure occurred
 failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
 
@@ -372,7 +366,7 @@ while time < t_end
         end
         fprintf('Relieving stresses between %e-%e m\n',min_depth,max_depth);
         results.failure_thickness(ifail) = max_depth-min_depth;
-        results.failure_time(ifail) = time/seconds_in_year/1e6;
+        results.failure_time(ifail) = time;
         results.failure_P(ifail) = Pex;
         results.failure_top(ifail) = min_depth;
         results.failure_bottom(ifail) = max_depth;
@@ -418,7 +412,7 @@ while time < t_end
     
     time = time + dt;
     
-    if (time-last_store >= save_interval || time >= t_end || any(failure_mask))
+    if time >= save_start && (time-last_store >= save_interval || time >= t_end || any(failure_mask))
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         time_store(isave) = time;
         
@@ -436,7 +430,11 @@ while time < t_end
     end
 end
 %% Trim results structure
-ifail = find(results.failure_time>0,1,'last');
+ifail2 = find(results.failure_time>0,1,'last');
+ifail1 = find(results.failure_time>=save_start,1,'first');
+fail_mask = false(size(results.failure_time));
+fail_mask(ifail1:ifail2) = true;
+
 isave = find(results.time>0,1,'last');
 % general information:
 results.time = results.time(1:isave);
@@ -450,12 +448,12 @@ results.sigma_dTdr = results.dTdr(:,1:isave);
 results.T = results.T(:,1:isave);
 results.ur = results.ur(:,1:isave);
 % failure information:
-results.failure_time = results.failure_time(1:ifail);
-results.failure_P = results.failure_P(1:ifail);
-results.failure_dP = results.failure_dP(1:ifail);
-results.failure_thickness = results.failure_thickness(1:ifail);
-results.failure_top = results.failure_top(1:ifail);
-results.failure_bottom = results.failure_bottom(1:ifail);
-results.failure_erupted_volume = results.failure_erupted_volume(1:ifail);
-results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange(1:ifail);
-results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange(1:ifail);
+results.failure_time = results.failure_time(fail_mask);
+results.failure_P = results.failure_P(fail_mask);
+results.failure_dP = results.failure_dP(fail_mask);
+results.failure_thickness = results.failure_thickness(fail_mask);
+results.failure_top = results.failure_top(fail_mask);
+results.failure_bottom = results.failure_bottom(fail_mask);
+results.failure_erupted_volume = results.failure_erupted_volume(fail_mask);
+results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange(fail_mask);
+results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange(fail_mask);

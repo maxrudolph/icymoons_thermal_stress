@@ -14,7 +14,10 @@ seconds_in_year = 3.1558e7;
 % parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
 % parameters.relaxation_parameter = 1e-5;  % europa value
 % parameters.tensile_strength = 3e6;
-% parameters.perturbation_period = 1e7*seconds_in_year;
+% parameters.perturbation_period = 1e8*seconds_in_year;
+% parameters.save_start = parameters.perturbation_period*2;
+% parameters.end_time = parameters.perturbation_period*5;
+% parameters.label = 'Europa';
 
 % Enceladus
 parameters = struct();
@@ -26,10 +29,14 @@ parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
 parameters.relaxation_parameter = 1e-2;  
 parameters.tensile_strength = 3e6;
 parameters.perturbation_period = 1e7*seconds_in_year;
+parameters.save_start = parameters.perturbation_period*2;
+parameters.save_interval = parameters.perturbation_period/100;
+parameters.end_time = parameters.perturbation_period*5;
+parameters.label = 'Enceladus';
 
-ndQ = 6;
+ndQ = 8;
 dQ = linspace(0.1,0.8,ndQ) ;
-nthick = 7;
+nthick = 15;
 thicknesses = linspace(4e3,20e3,nthick);
 all_results = cell(ndQ,nthick);
 all_parameters = cell(ndQ,nthick);
@@ -42,21 +49,45 @@ for idQ = 1:length(dQ)
         all_results{idQ,ithick} = main_cyclic_thermomechanical_model(parameters1);
     end
 end
+save([parameters.label '_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
+
 %% Analyze models
 all_erupted_volume = zeros(size(all_results));
+all_failure_events = zeros(size(all_results));
 for ithick=1:nthick
     for idQ=1:ndQ
         results = all_results{idQ,ithick};
         parameters = all_parameters{idQ,ithick};
         ifail = find(results.failure_time>0,1,'last');
-        time_mask = results.failure_time >= 1*parameters.perturbation_period/seconds_in_year/1e6;
+        time_mask = results.failure_time >= 2*parameters.perturbation_period/seconds_in_year/1e6;
         % calculate the total volume erupted
-        all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );        
+        all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
+        all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
     end
 end
+figure();
+t=tiledlayout(2,1,'Padding','none','TileSpacing','none','Units','centimeters');
+t.OuterPosition(3:4) = [9 9];
+nexttile;
+dt = max(results.time) - 2*parameters.perturbation_period;
+contourf(thicknesses/1e3,dQ,all_erupted_volume/(4*pi*parameters.Ro^2)/(dt/seconds_in_year/1e6),16,'Color','none');
+hcb=colorbar();
+hcb.Label.String = 'Erupted Volume (m/Myr)';
+ylabel('\Delta Q/Q_0');
+xlabel('Average Thickness (km)');
+
+nexttile;
+dt = max(results.time) - 2*parameters.perturbation_period;
+contourf(thicknesses/1e3,dQ,all_failure_events/(dt/parameters.perturbation_period),24,'Color','none');
+hcb=colorbar();
+hcb.Label.String = 'Failure events per cycle';
+ylabel('\Delta Q/Q_0');
+xlabel('Average Thickness (km)');
+
+exportgraphics(gcf,'test.eps');
 
 %% Plotting routines:
-for ithick=1:nthick
+for ithick=2:2
     for idQ=1:ndQ
     results = all_results{idQ,ithick};
     parameters = all_parameters{idQ,ithick};
@@ -95,7 +126,7 @@ for ithick=1:nthick
     ylabel('Depth (km)');
     hold on;
     for i=1:ifail
-        plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
+        plot(results.failure_time(i)/seconds_in_year*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
     end
     nexttile
     plot(results.time(mask)/seconds_in_year,results.Pex(mask));
@@ -104,12 +135,12 @@ for ithick=1:nthick
     ax2.Position(3) = ax1.Position(3);
     ax2.XLim = ax1.XLim;
     hold on
-    plot(results.failure_time(1:ifail)*1e6,results.failure_P(1:ifail),'ro');
-    plot(results.failure_time(1:ifail)*1e6,(results.failure_P(1:ifail)+results.failure_dP(1:ifail)),'g.');
+    plot(results.failure_time(1:ifail)/seconds_in_year,results.failure_P(1:ifail),'ro');
+    plot(results.failure_time(1:ifail)/seconds_in_year,(results.failure_P(1:ifail)+results.failure_dP(1:ifail)),'g.');
     nexttile
     hold on;
     for i=1:ifail
-        plot(results.failure_time(i)*1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');
+        plot(results.failure_time(i)/seconds_in_year*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');
         %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_volumechange(i)/(4*pi*Ro^2),'go');
         %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_pressurechange(i)/(4*pi*Ro^2),'rx');
     end
