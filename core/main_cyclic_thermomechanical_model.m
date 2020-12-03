@@ -444,7 +444,7 @@ results.qb = results.qb(1:isave);
 results.sigma_t = results.sigma_t(:,1:isave);
 results.sigma_r = results.sigma_r(:,1:isave);
 results.Pex = results.Pex(1:isave);
-results.sigma_dTdr = results.dTdr(:,1:isave);
+results.dTdr = results.dTdr(:,1:isave);
 results.T = results.T(:,1:isave);
 results.ur = results.ur(:,1:isave);
 % failure information:
