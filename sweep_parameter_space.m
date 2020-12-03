@@ -28,10 +28,10 @@ parameters.Ro = 2.52e5;
 parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
 parameters.relaxation_parameter = 1e-2;
 parameters.tensile_strength = 3e6;
-parameters.perturbation_period = 1e7*seconds_in_year;
-parameters.save_start = parameters.perturbation_period*2;
+parameters.perturbation_period = 1e8*seconds_in_year;
+parameters.save_start = parameters.perturbation_period*5;
 parameters.save_interval = parameters.perturbation_period/100;
-parameters.end_time = parameters.perturbation_period*5;
+parameters.end_time = parameters.perturbation_period*10;
 parameters.label = 'Enceladus';
 
 ndQ = 8;
