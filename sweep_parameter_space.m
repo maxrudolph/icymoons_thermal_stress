@@ -5,38 +5,39 @@ close all;
 addpath core;
 seconds_in_year = 3.1558e7;
 % Europa
-% parameters = struct();
-% parameters.Tb = 273;
-% parameters.Ts = 100;
-% parameters.g  = 1.30;
-% parameters.Ro = 1.561e6;
-% parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
-% parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
-% parameters.relaxation_parameter = 1e-5;  % europa value
-% parameters.tensile_strength = 3e6;
-% parameters.perturbation_period = 1e8*seconds_in_year;
-% parameters.save_start = parameters.perturbation_period*2;
-% parameters.end_time = parameters.perturbation_period*5;
-% parameters.label = 'Europa';
+ parameters = struct();
+ parameters.Tb = 273;
+ parameters.Ts = 100;
+ parameters.g  = 1.30;
+ parameters.Ro = 1.561e6;
+ parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
+ parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
+ parameters.relaxation_parameter = 1e-4;  % europa value
+ parameters.tensile_strength = 3e6;
+ parameters.perturbation_period = 1e8*seconds_in_year;
+ parameters.save_start = parameters.perturbation_period*5;
+ parameters.save_interval = parameters.perturbation_period/100;
+ parameters.end_time = parameters.perturbation_period*10;
+ parameters.label = 'Europa';
 
 % Enceladus
-parameters = struct();
-parameters.Tb = 273;
-parameters.Ts = 100;
-parameters.g  = 0.113;
-parameters.Ro = 2.52e5;
-parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
-parameters.relaxation_parameter = 1e-2;
-parameters.tensile_strength = 3e6;
-parameters.perturbation_period = 1e8*seconds_in_year;
-parameters.save_start = parameters.perturbation_period*5;
-parameters.save_interval = parameters.perturbation_period/100;
-parameters.end_time = parameters.perturbation_period*10;
-parameters.label = 'Enceladus';
+%parameters = struct();
+%parameters.Tb = 273;
+%parameters.Ts = 100;
+%parameters.g  = 0.113;
+%parameters.Ro = 2.52e5;
+%parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
+%parameters.relaxation_parameter = 1e-2;
+%parameters.tensile_strength = 3e6;
+%parameters.perturbation_period = 1e8*seconds_in_year;
+%parameters.save_start = parameters.perturbation_period*5;
+%parameters.save_interval = parameters.perturbation_period/100;
+%parameters.end_time = parameters.perturbation_period*10;
+%parameters.label = 'Enceladus';
 
 ndQ = 8;
 dQ = linspace(0.1,0.8,ndQ) ;
-nthick = 15;
+nthick = 20;
 thicknesses = linspace(4e3,20e3,nthick);
 all_results = cell(ndQ,nthick);
 all_parameters = cell(ndQ,nthick);
