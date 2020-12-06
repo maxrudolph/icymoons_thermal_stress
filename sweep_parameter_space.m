@@ -59,6 +59,10 @@ for moon=0:1
     end
     save([parameters.label '_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
 end
+%% Load results
+clearvars -except seconds_in_year;
+load('Enceladus_workspace.mat');
+
 %% Analyze models
 all_erupted_volume = zeros(size(all_results));
 all_failure_events = zeros(size(all_results));
