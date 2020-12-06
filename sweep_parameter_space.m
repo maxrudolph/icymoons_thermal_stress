@@ -4,54 +4,58 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-% Europa
- parameters = struct();
- parameters.Tb = 273;
- parameters.Ts = 100;
- parameters.g  = 1.30;
- parameters.Ro = 1.561e6;
- parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
- parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
- parameters.relaxation_parameter = 1e-4;  % europa value
- parameters.tensile_strength = 3e6;
- parameters.perturbation_period = 1e8*seconds_in_year;
- parameters.save_start = parameters.perturbation_period*5;
- parameters.save_interval = parameters.perturbation_period/100;
- parameters.end_time = parameters.perturbation_period*10;
- parameters.label = 'Europa';
 
-% Enceladus
-%parameters = struct();
-%parameters.Tb = 273;
-%parameters.Ts = 100;
-%parameters.g  = 0.113;
-%parameters.Ro = 2.52e5;
-%parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
-%parameters.relaxation_parameter = 1e-2;
-%parameters.tensile_strength = 3e6;
-%parameters.perturbation_period = 1e8*seconds_in_year;
-%parameters.save_start = parameters.perturbation_period*5;
-%parameters.save_interval = parameters.perturbation_period/100;
-%parameters.end_time = parameters.perturbation_period*10;
-%parameters.label = 'Enceladus';
-
-ndQ = 8;
-dQ = linspace(0.1,0.8,ndQ) ;
-nthick = 20;
-thicknesses = linspace(4e3,20e3,nthick);
-all_results = cell(ndQ,nthick);
-all_parameters = cell(ndQ,nthick);
-for idQ = 1:length(dQ)
-    parfor ithick = 1:length(thicknesses)
-        parameters1 = parameters;
-        parameters1.Ri = parameters.Ro-thicknesses(ithick);
-        parameters1.deltaQonQ = dQ(idQ);
-        all_parameters{idQ,ithick} = parameters1;
-        all_results{idQ,ithick} = main_cyclic_thermomechanical_model(parameters1);
+for moon=0:1
+    if moon==0
+        % Europa
+        parameters = struct();
+        parameters.Tb = 273;
+        parameters.Ts = 100;
+        parameters.g  = 1.30;
+        parameters.Ro = 1.561e6;
+        parameters.Ri = parameters.Ro-4.0e3;     % inner radius of ice shell (m)
+        parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
+        parameters.relaxation_parameter = 1e-4;  % europa value
+        parameters.tensile_strength = 3e6;
+        parameters.perturbation_period = 1e8*seconds_in_year;
+        parameters.save_start = parameters.perturbation_period*5;
+        parameters.save_interval = parameters.perturbation_period/100;
+        parameters.end_time = parameters.perturbation_period*10;
+        parameters.label = 'Europa';
+    else
+        % Enceladus
+        parameters = struct();
+        parameters.Tb = 273;
+        parameters.Ts = 100;
+        parameters.g  = 0.113;
+        parameters.Ro = 2.52e5;
+        parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
+        parameters.relaxation_parameter = 1e-2;
+        parameters.tensile_strength = 3e6;
+        parameters.perturbation_period = 1e8*seconds_in_year;
+        parameters.save_start = parameters.perturbation_period*5;
+        parameters.save_interval = parameters.perturbation_period/100;
+        parameters.end_time = parameters.perturbation_period*10;
+        parameters.label = 'Enceladus';
     end
+    
+    ndQ = 16;
+    dQ = linspace(0.1,0.8,ndQ) ;
+    nthick = 20;
+    thicknesses = linspace(4e3,20e3,nthick);
+    all_results = cell(ndQ,nthick);
+    all_parameters = cell(ndQ,nthick);
+    for idQ = 1:length(dQ)
+        parfor ithick = 1:length(thicknesses)
+            parameters1 = parameters;
+            parameters1.Ri = parameters.Ro-thicknesses(ithick);
+            parameters1.deltaQonQ = dQ(idQ);
+            all_parameters{idQ,ithick} = parameters1;
+            all_results{idQ,ithick} = main_cyclic_thermomechanical_model(parameters1);
+        end
+    end
+    save([parameters.label '_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
 end
-save([parameters.label '_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
-
 %% Analyze models
 all_erupted_volume = zeros(size(all_results));
 all_failure_events = zeros(size(all_results));
