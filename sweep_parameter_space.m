@@ -45,14 +45,17 @@ for moon=0:1
     thicknesses = linspace(4e3,20e3,nthick);
     all_results = cell(ndQ,nthick);
     all_parameters = cell(ndQ,nthick);
+    
     for idQ = 1:length(dQ)
-        parfor ithick = 1:length(thicknesses)
+        for ithick = 1:length(thicknesses)
             parameters1 = parameters;
             parameters1.Ri = parameters.Ro-thicknesses(ithick);
             parameters1.deltaQonQ = dQ(idQ);
             all_parameters{idQ,ithick} = parameters1;
-            all_results{idQ,ithick} = main_cyclic_thermomechanical_model(parameters1);
         end
+    end
+    parfor irun=1:ndQ*nthick
+        all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
     end
     save([parameters.label '_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
 end
