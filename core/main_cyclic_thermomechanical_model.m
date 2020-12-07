@@ -58,7 +58,7 @@ fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(Ts)/E,mu(Tb)/E);
 fprintf('Thermal diffusion timescale %.2e\n',(Ro-Ri)^2/kappa);
 
 % set end time and grid resolution
-dtmax = 1e5*seconds_in_year;
+dtmax = 1e4*seconds_in_year;
 dtmin = 1e1*seconds_in_year;
 
 save_depths = linspace(0,(parameters.Ro-parameters.Ri)/(1-parameters.deltaQonQ)*1.25,200);

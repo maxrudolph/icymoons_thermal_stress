@@ -61,6 +61,8 @@ for moon=0:1
 end
 %% Load results
 clearvars -except seconds_in_year;
+seconds_in_year = 3.1558e7;
+
 load('Enceladus_workspace.mat');
 
 %% Analyze models
