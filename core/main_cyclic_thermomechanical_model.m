@@ -275,7 +275,7 @@ while time < t_end
             converged = true;
         elseif iter==maxiter
             for i=1:maxiter
-                 fprintf('iter %d. Pex_post %.2e Pex %.2e\n',i,pexpost_store(i),pex_store(i));
+                 fprintf('iter %d. Pex_post %.6e Pex %.6e\n',i,pexpost_store(i),pex_store(i));
             end
             error('Nonlinear loop failed to converge');            
         end
