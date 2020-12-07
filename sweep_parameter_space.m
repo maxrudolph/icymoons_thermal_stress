@@ -39,9 +39,9 @@ for moon=0:1
         parameters.label = 'Enceladus';
     end
     
-    ndQ = 16;
+    ndQ = 15;
     dQ = linspace(0.1,0.8,ndQ) ;
-    nthick = 20;
+    nthick = 33;
     thicknesses = linspace(4e3,20e3,nthick);
     all_results = cell(ndQ,nthick);
     all_parameters = cell(ndQ,nthick);
