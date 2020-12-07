@@ -270,7 +270,7 @@ while time < t_end
 
 
         % check for convergence
-        if abs( Pex_post-Pex )/abs(Pex) < 1e-3
+        if abs( Pex_post-Pex )/abs(Pex) < 1e-6
             fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
             converged = true;
         elseif iter==maxiter
