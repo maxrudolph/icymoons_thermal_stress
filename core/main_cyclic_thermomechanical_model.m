@@ -28,11 +28,11 @@ R=8.314e-3;             % Ideal Gas constant (kJ/mol/K)
 % Heating model
 Q0 = k*(parameters.Tb-parameters.Ts)/(parameters.Ro-parameters.Ri);
 % Qbelow is a function that returns the heating rate in W/m^2:
-Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period)); 
+Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period));
 
 % Numerical parameters
 ifail = 1;              % index into list of times at which failure occurred.
-nr = 512;               % Number of nodes in radial direction 
+nr = 512;               % Number of nodes in radial direction
 maxiter=1000;           % Maximum iterations in nonlinear loop
 
 % Physical constants
@@ -181,17 +181,17 @@ while time < t_end
     for iter=1:maxiter
         if iter>3 && iter < 100 % disable this code for now - not working for Europa.
             % Pex = interp1(pexpost_store(1:iter-1)-pex_store(1:iter-1),pex_store(1:iter-1),0,'linear','extrap');
-
+            
             [tmp,ind] = sort(pexpost_store(1:iter-1)-pex_store(1:iter-1));
             [tmp1,ind1] = unique(tmp);
             Pex = interp1(tmp1,pex_store(ind(ind1)),0,'linear','extrap');
         elseif iter>1
-             Pex = Pex + relaxation_parameter*(Pex_post-Pex);              
+            Pex = Pex + relaxation_parameter*(Pex_post-Pex);
         else
             Pex = Pex_last;
         end
         if iter == maxiter
-%             keyboard
+            %             keyboard
         end
         
         % calculate viscosity at each node
@@ -217,7 +217,7 @@ while time < t_end
         if all(failure_mask)
             % Crack reached ocean. Reset overpressure to zero.
             Pex=0;
-            converged=true;           
+            converged=true;
         end
         % No failure - calculate stresses as usual
         [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
@@ -252,32 +252,32 @@ while time < t_end
         % re-calculate excess pressure using new uplift
         %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
         Pex_post = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
-%         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
+        %         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
         
-% calcualte an approximate derivative d_sigma_r/dPex
+        % calcualte an approximate derivative d_sigma_r/dPex
         perturb = max(1e-4,abs(1e-6*Pex));
         [sigma_rp,sigma_tp,~,sigma_tDp] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex+perturb),E,nu,dt);
         [sigma_rm,sigma_tm,~,sigma_tDm] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex-perturb),E,nu,dt);
         dsigma_tp = sigma_tp - sigma_t_last; dsigma_rp = sigma_rp-sigma_r_last;
         dsigma_tm = sigma_tm - sigma_t_last; dsigma_rm = sigma_rm-sigma_r_last;
         
-        de_tp = 1/E*(dsigma_tp-nu*(dsigma_tp+dsigma_rp))+alpha_l*dT + dt/2*(sigma_tDp./mu_node); % change in tangential strain 
+        de_tp = 1/E*(dsigma_tp-nu*(dsigma_tp+dsigma_rp))+alpha_l*dT + dt/2*(sigma_tDp./mu_node); % change in tangential strain
         de_tm = 1/E*(dsigma_tm-nu*(dsigma_tm+dsigma_rm))+alpha_l*dT + dt/2*(sigma_tDm./mu_node); % change in tangential strain
         du_p = grid_r(1) * de_tp(1);
         du_m = grid_r(1) * de_tm(1);
         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
-
-
-
+        
+        
+        
         % check for convergence
         if abs( Pex_post-Pex )/abs(Pex) < 1e-3
             fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
             converged = true;
         elseif iter==maxiter
             for i=1:maxiter
-                 fprintf('iter %d. Pex_post %.12e Pex %.12e\n',i,pexpost_store(i),pex_store(i));
+                fprintf('iter %d. Pex_post %.12e Pex %.12e\n',i,pexpost_store(i),pex_store(i));
             end
-            error('Nonlinear loop failed to converge');            
+            error('Nonlinear loop failed to converge');
         end
         if all(failure_mask)
             % Calculate the volume erupted (dP)*beta*V0 + V-V0
