@@ -4,6 +4,7 @@ Ro = parameters.Ro;     % outer radius of ice shell (m)
 Ri = parameters.Ri;     % inner radius of ice shell (m)
 Rc = parameters.Rc;     % core radius (m)
 g = parameters.g;       % gravitational acceleration, m/s/s
+k = parameters.k;       % Thermal conductivity function
 tensile_strength = parameters.tensile_strength;     % tensile strength, Pa
 perturbation_period = parameters.perturbation_period; % period of perturbation (s)
 deltaQonQ = parameters.deltaQonQ;   % fractional perturbation to Q0.
@@ -14,6 +15,13 @@ t_end = parameters.end_time; % Simulation end time (s)
 save_interval = parameters.save_interval; % Time between saved results (s)
 save_start = parameters.save_start; % Time to begin saving (s)
 
+% Numerical parameters
+ifail = 1;              % index into list of times at which failure occurred.
+nr = 512;               % Number of nodes in radial direction
+maxiter=1000;           % Maximum iterations in nonlinear loop
+% set up the grid
+grid_r = linspace(Ri,Ro,nr); % set up the grid
+
 % Basic physical properties
 rho_i=900;              % density of ice (kg/m^3)
 rho_w=1000;             % density of water (kg/m^3)
@@ -22,18 +30,16 @@ rho_w=1000;             % density of water (kg/m^3)
 Cp = 2100;              % heat capacity of ice (J/kg/K)
 Lf = 334*1000;          % latent heat of fusion (J/kg)
 kappa = 1e-6;           % Thermal diffusivity (m/s/s)
-k=kappa*rho_i*Cp;       % Thermal conductivity (W/m/K)
+% k=kappa*rho_i*Cp;       % Thermal conductivity (W/m/K)
 R=8.314e-3;             % Ideal Gas constant (kJ/mol/K)
 
 % Heating model
-Q0 = k*(parameters.Tb-parameters.Ts)/(parameters.Ro-parameters.Ri);
+% Q0 = k*(parameters.Tb-parameters.Ts)/(parameters.Ro-parameters.Ri);
+% Calculate the steady state basal heat flux, including k(T) = k1/T
+% temperature dependence.
+[Q0,T_last] = find_steady_T(parameters.Ri,parameters.Ro,parameters.Tb,parameters.Ts,grid_r);
 % Qbelow is a function that returns the heating rate in W/m^2:
 Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period));
-
-% Numerical parameters
-ifail = 1;              % index into list of times at which failure occurred.
-nr = 512;               % Number of nodes in radial direction
-maxiter=1000;           % Maximum iterations in nonlinear loop
 
 % Physical constants
 seconds_in_year = 3.1558e7;
@@ -90,16 +96,19 @@ erupted_volume = 0;
 erupted_volume_pressurechange = 0;
 erupted_volume_volumechange = 0;
 
-% set up the grid
-grid_r = linspace(Ri,Ro,nr); % set up the grid
+
 
 % initialize solution vectors (IC)
 sigma_r_last = zeros(nr,1); % initial stresses
 sigma_t_last = zeros(nr,1); % initial stresses
-T_last = zeros(nr,1);
-% Initialize T with steady numerical solution.
-T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);
 
+% Initialize T with steady numerical solution.
+for iter=1:10    
+    % Iterate 10 times to ensure consistency between assumed and actual k(T)
+    % In practice, this doesn't matter if we start with the correct
+    % analytic solution already.
+    T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);    
+end
 er_last = zeros(nr,1); % strains
 et_last = zeros(nr,1);
 ur_last = zeros(nr,1); % displacement
@@ -132,7 +141,7 @@ while time < t_end
     dt = dtmax;
     Tg = Tb-(T_last(2)-Tb);
     dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
-    qb = -k*dTdr_b_last;
+    qb = -k(parameters.Tb)*dTdr_b_last;
     qb_net = qb - Qbelow(time+dt); % first term is conducted heat. second term is heat supplied from below.
     
     % determine the timestep

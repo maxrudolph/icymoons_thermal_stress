@@ -23,20 +23,26 @@ val=zeros(3*nr,1);
 ind=1;
 for i=1:nr
     r = grid_r(i);
+    % Grid setup:
+    %   |     o    |    o     |
+    % (i-1)   B   (i)   A   (i+1)
     if i==1
         drm = grid_r(i+1)-grid_r(i);
+        kB = k( Tb - (T_last(i+1)-T_last(i))/2 );
     else
         drm = grid_r(i)-grid_r(i-1);
+        kB = k( (T_last(i)+T_last(i-1))/2 );
     end
     if i==nr
         drp = drm;
+        kA = k( Ts + (T_last(i)-T_last(i-1))/2 );
     else
         drp = grid_r(i+1)-grid_r(i);
+        kA = k( (T_last(i)+T_last(i+1))/2 );
     end
     rA = r + drp/2;
     rB = r - drm/2;
-    kA = k;% thermal conductivities
-    kB = k;
+        
     dr = rA-rB;
     coef_plus   = -kA*rA^2/r^2/drp/dr;
     coef_center =  rho_i*Cp/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;

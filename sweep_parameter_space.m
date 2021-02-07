@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = false
+do_runs = true
 if do_runs
     for moon=0:1
         if moon==0
@@ -21,12 +21,15 @@ if do_runs
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
             parameters.end_time = parameters.perturbation_period*10;
+            parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
             parameters.label = 'Europa';
         else
             % Enceladus
             parameters = struct();
             parameters.Tb = 273;
             parameters.Ts = 100;
+            parameters.k = @(T) 651./T; %Petrenko and Whitworth 1999
+
             parameters.g  = 0.113;
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
@@ -54,6 +57,7 @@ if do_runs
                 all_parameters{idQ,ithick} = parameters1;
             end
         end
+        % parfor here for real runs:
         parfor irun=1:ndQ*nthick
             all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
         end
