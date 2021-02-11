@@ -16,8 +16,8 @@ k1 = 651.0;
 % c = -k1*Ro./qb*log(Ts/Tb);
 % h = (Ro - sqrt(Ro^2-4*c))/2;
 
-h = (-qs - Ro*k1/Ro^2*log(Ts/Tb)).^-1 * k1/Ro*log(Ts/Tb);
-
+% h = (-qs - Ro*k1/Ro^2*log(Ts/Tb)).^-1 * k1/Ro*log(Ts/Tb);
+h = (qs - k1./Ro*log(Ts/Tb)).^-1 * -k1*log(Ts/Tb);
 % Uncomment for validation:
 % Ri = Ro-h;
 % r = linspace(Ri,Ro);

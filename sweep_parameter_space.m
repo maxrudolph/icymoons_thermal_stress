@@ -87,6 +87,8 @@ else% postprocess:
                 results = all_results{idQ,ithick};
                 parameters = all_parameters{idQ,ithick};
                 ifail = find(results.failure_time>0,1,'last');
+                results.Qtot = results.Qtot(1:length(results.qb));
+                all_results{idQ,ithick} = results;
                 time_mask = results.failure_time >= 2*parameters.perturbation_period/seconds_in_year/1e6;
                 % calculate the total volume erupted
                 all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
@@ -164,15 +166,15 @@ else% postprocess:
                 %         plot(results.time/seconds_in_year, (actual_dz/std(actual_dz)) );
                 %         figure, plot(results.time/seconds_in_year, actual_thickness ); hold on
 %                 ss_thickness = k*(273-100)./results.qb;
-                Qb = results.qb .* (4*pi*(results.Ri-results.z).^2);
-                qsurf = Qb./(4*pi*parameters.Ro^2);
+               
+                qsurf = results.Qtot./(4*pi*parameters.Ro^2);
                 ss_thickness = find_steady_h(parameters.Ro,parameters.Tb,parameters.Ts,qsurf);
                 if any( imag(ss_thickness) ~= 0 )
                    ss_thickness = real(ss_thickness);
                    warning('complex thickness encountered - this case is not reasonable');
                 end
-                [ss_peaks,ss_ind] = findpeaks(ss_thickness);
-                [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',10);
+                [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/2);
+                [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/2);
                 phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
                 all_phase_lags(idQ,ithick) = phase_lag;
                 all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));
