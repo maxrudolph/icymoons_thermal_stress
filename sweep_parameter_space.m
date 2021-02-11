@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true
+do_runs = false
 if do_runs
     for moon=0:1
         if moon==0
@@ -72,15 +72,16 @@ else% postprocess:
         clearvars -except seconds_in_year moon;
         seconds_in_year = 3.1558e7;
         if moon==0
-            load('Europa_workspace.mat');
+            load('~/Europa_workspace.mat');
         else
-            load('Enceladus_workspace.mat');
+            load('~/Enceladus_workspace.mat');
         end
         
         %% Analyze models
         all_erupted_volume = zeros(size(all_results));
         all_failure_events = zeros(size(all_results));
         all_failure_fraction = zeros(size(all_results));
+        all_actual_thickness = zeros(size(all_results));
         for ithick=1:nthick
             for idQ=1:ndQ
                 results = all_results{idQ,ithick};
@@ -90,6 +91,7 @@ else% postprocess:
                 % calculate the total volume erupted
                 all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
                 all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
+                all_actual_thickness(idQ,ithick) = mean( parameters.Ro-(results.Ri-results.z) );
                 % approximate ice shell thickness at time of failure
                 if any(results.failure_thickness)
                     failure_thickness = interp1(results.time,parameters.Ro-(results.Ri-results.z),results.failure_time(time_mask));
@@ -161,9 +163,16 @@ else% postprocess:
                 actual_thickness = parameters.Ro - (results.Ri-results.z);
                 %         plot(results.time/seconds_in_year, (actual_dz/std(actual_dz)) );
                 %         figure, plot(results.time/seconds_in_year, actual_thickness ); hold on
-                ss_thickness = k*(273-100)./results.qb;
+%                 ss_thickness = k*(273-100)./results.qb;
+                Qb = results.qb .* (4*pi*(results.Ri-results.z).^2);
+                qsurf = Qb./(4*pi*parameters.Ro^2);
+                ss_thickness = find_steady_h(parameters.Ro,parameters.Tb,parameters.Ts,qsurf);
+                if any( imag(ss_thickness) ~= 0 )
+                   ss_thickness = real(ss_thickness);
+                   warning('complex thickness encountered - this case is not reasonable');
+                end
                 [ss_peaks,ss_ind] = findpeaks(ss_thickness);
-                [actual_peaks,actual_ind] = findpeaks(actual_thickness);
+                [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',10);
                 phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
                 all_phase_lags(idQ,ithick) = phase_lag;
                 all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));

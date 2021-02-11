@@ -60,11 +60,13 @@ for isetup = 1:2
         Cp = 2100; %heat capacity of ice J/kg/K
         Lf = 334*1000; % latent heat of fusion (J/kg)
         kappa = 1e-6;% m/s/s
-        k=kappa*rho_i*Cp;
+%         k=kappa*rho_i*Cp;
+        k = @(T) 651./T;
         %
         % Basal heating model - depends on thickness and transport properties
         %
-        Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
+%         Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
+        [Q0,T,q] = find_steady_T(Ri,Ro,Tb,Ts,linspace(Ri,Ro,nr));
         perturbation_period = 1.0e8*seconds_in_year;
         deltaQonQ = 1.0; % fractional perturbation to Q0.
         
@@ -119,7 +121,7 @@ for isetup = 1:2
         T_last = zeros(nr,1);
         % Initialize T with steady numerical solution.
         %T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);
-        T_last(:) = solve_stefan_analytic(grid_r(end)-grid_r,k,rho_i,Cp,Lf,Tb,Ts);
+        T_last(:) = solve_stefan_analytic(grid_r(end)-grid_r,k(Tb),rho_i,Cp,Lf,Tb,Ts);
         
         er_last = zeros(nr,1); % strains
         et_last = zeros(nr,1);
@@ -194,7 +196,7 @@ for isetup = 1:2
             dt = dtmax;
             Tg = Tb-(T_last(2)-Tb);
             dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
-            qb = -k*dTdr_b_last;
+            qb = -k(Tb)*dTdr_b_last;
             qb_net = qb - Qbelow(time+dt); % first term is conducted heat. second term is heat supplied from below.
             
             % determine the timestep

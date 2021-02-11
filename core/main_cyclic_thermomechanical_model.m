@@ -37,9 +37,10 @@ R=8.314e-3;             % Ideal Gas constant (kJ/mol/K)
 % Q0 = k*(parameters.Tb-parameters.Ts)/(parameters.Ro-parameters.Ri);
 % Calculate the steady state basal heat flux, including k(T) = k1/T
 % temperature dependence.
-[Q0,T_last] = find_steady_T(parameters.Ri,parameters.Ro,parameters.Tb,parameters.Ts,grid_r);
-% Qbelow is a function that returns the heating rate in W/m^2:
-Qbelow = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period));
+[~,T_last,qr] = find_steady_T(parameters.Ri,parameters.Ro,parameters.Tb,parameters.Ts,grid_r);
+Q0 = 4*pi*parameters.Ro^2 * qr(end);
+% Qtot is a function that returns the heating rate in W:
+Qtot = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period));
 
 % Physical constants
 seconds_in_year = 3.1558e7;
@@ -77,6 +78,7 @@ results.save_depths = save_depths;
 results.z = zeros(nsave,1);
 results.Ri = zeros(nsave,1); results.Ri(1) = Ri;
 results.qb = zeros(nsave,1);
+results.Qtot = zeros(nsave,1);
 results.sigma_t = NaN*zeros(nsave_depths,nsave);
 results.sigma_r = NaN*zeros(nsave_depths,nsave);
 results.Pex = zeros(nsave,1);
@@ -142,7 +144,8 @@ while time < t_end
     Tg = Tb-(T_last(2)-Tb);
     dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
     qb = -k(parameters.Tb)*dTdr_b_last;
-    qb_net = qb - Qbelow(time+dt); % first term is conducted heat. second term is heat supplied from below.
+    qbelow = Qtot(time+dt) / ( 4*pi*grid_r(1)^2 ); % This is q=Q/area
+    qb_net = qb - qbelow; % first term is conducted heat. second term is heat supplied from below.
     
     % determine the timestep
     if abs(qb_net/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
@@ -159,7 +162,8 @@ while time < t_end
         dt = dtmin;
     end
     
-    qb_net = qb - Qbelow(time+dt);
+    qbelow = Qtot(time+dt) / ( 4*pi*grid_r(1)^2 ); % This is q=Q/area
+    qb_net = qb - qbelow;
     
     % thickening would be dx/dt = qb/(L*rho_i)
     delta_rb = dt*qb_net/Lf/rho_i;
@@ -428,7 +432,8 @@ while time < t_end
         results.time(isave) = time;
         results.z(isave) = z;
         results.Ri(isave) = Ri;
-        results.qb(isave) = Qbelow(time);
+        results.Qtot(isave) = Qtot;
+        results.qb(isave) = qbelow;
         results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
         results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
