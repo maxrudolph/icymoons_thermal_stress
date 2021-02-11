@@ -455,6 +455,7 @@ results.time = results.time(1:isave);
 results.z = results.z(1:isave);
 results.Ri = results.Ri(1:isave,:);
 results.qb = results.qb(1:isave);
+results.Qtot = results.Qtot(1:isave);
 results.sigma_t = results.sigma_t(:,1:isave);
 results.sigma_r = results.sigma_r(:,1:isave);
 results.Pex = results.Pex(1:isave);

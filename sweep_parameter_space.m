@@ -68,7 +68,7 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
 
-    for moon=0:1
+    for moon=0:0
         clearvars -except seconds_in_year moon;
         seconds_in_year = 3.1558e7;
         if moon==0
