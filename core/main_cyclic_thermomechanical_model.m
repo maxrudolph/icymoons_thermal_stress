@@ -432,7 +432,7 @@ while time < t_end
         results.time(isave) = time;
         results.z(isave) = z;
         results.Ri(isave) = Ri;
-        results.Qtot(isave) = Qtot;
+        results.Qtot(isave) = Qtot(time);
         results.qb(isave) = qbelow;
         results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
