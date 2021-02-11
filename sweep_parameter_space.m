@@ -68,7 +68,7 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
 
-    for moon=0:0
+    for moon=0:1
         clearvars -except seconds_in_year moon;
         seconds_in_year = 3.1558e7;
         if moon==0
@@ -77,15 +77,26 @@ else% postprocess:
             load('~/Enceladus_workspace.mat');
         end
         
+        
         %% Analyze models
         all_erupted_volume = zeros(size(all_results));
         all_failure_events = zeros(size(all_results));
         all_failure_fraction = zeros(size(all_results));
         all_actual_thickness = zeros(size(all_results));
-        for ithick=1:nthick
+        % Convert thickness into Q0
+        Qtots = zeros(size(thicknesses));
+        
+        for ithick=1:nthick            
             for idQ=1:ndQ
                 results = all_results{idQ,ithick};
                 parameters = all_parameters{idQ,ithick};
+                if idQ == 1
+                    [~,T_last,qr] = find_steady_T(parameters.Ri,parameters.Ro,parameters.Tb,parameters.Ts,[parameters.Ri parameters.Ro]);
+                    Q0 = 4*pi*parameters.Ro^2 * qr(end);
+                    Qtots(ithick)=Q0;
+                end
+                
+                
                 ifail = find(results.failure_time>0,1,'last');
                 results.Qtot = results.Qtot(1:length(results.qb));
                 all_results{idQ,ithick} = results;
@@ -93,7 +104,10 @@ else% postprocess:
                 % calculate the total volume erupted
                 all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
                 all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
-                all_actual_thickness(idQ,ithick) = mean( parameters.Ro-(results.Ri-results.z) );
+                % calculate the average thickness.
+                thickness = parameters.Ro-(results.Ri-results.z);
+                average_thickness = 1/(results.time(end)-results.time(1))*sum( (thickness(1:end-1) + thickness(2:end))/2 .* diff(results.time));
+                all_actual_thickness(idQ,ithick) = average_thickness;
                 % approximate ice shell thickness at time of failure
                 if any(results.failure_thickness)
                     failure_thickness = interp1(results.time,parameters.Ro-(results.Ri-results.z),results.failure_time(time_mask));
@@ -118,7 +132,7 @@ else% postprocess:
         hcb.Label.String = 'Erupted Volume (m/Myr)';
         colormap(crameri('davos'));
         ylabel('\Delta q/q_0');
-        xlabel('Average Thickness (km)');
+        xlabel('Equilibrium Thickness (km)');
         if( max(all_erupted_volume(:))==0 )
             caxis([0 1])
         end
@@ -131,7 +145,7 @@ else% postprocess:
         hcb = colorbar();
         hcb.Label.String = 'Fractional penetration';
         ylabel('\Delta q/q_0');
-        xlabel('Average Thickness (km)');
+        xlabel('Equilibrium Thickness (km)');
         
         % Panel 3
         nexttile(5+moon);
@@ -141,7 +155,7 @@ else% postprocess:
         
         hcb.Label.String = 'Failure events per cycle';
         ylabel('\Delta q/q_0');
-        xlabel('Average Thickness (km)');
+        xlabel('Equilibrium Thickness (km)');
         colormap(crameri('davos'));
 
         if moon == 1
@@ -199,6 +213,7 @@ else% postprocess:
         hcb.Label.String='\Delta h/\Delta h_{eq}';
         ylabel('\Delta q/q_0');
         xlabel('Average Thickness (km)');
+        caxis([0 1])
         exportgraphics(gcf,[parameters.label '_lag_eqlm.eps']);
         
         %% Plot maximum fractional penetration
