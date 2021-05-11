@@ -9,17 +9,17 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 1:2
+for isetup = 1:1
     if isetup == 1      % Europa
         Ro = 1.561e6;          % outer radius of ice shell (m)
-        Ri = Ro-2.0e3;         % inner radius of ice shell (m)
+        Ri = Ro-1.0e3;         % inner radius of ice shell (m)
         Rc = Ro-1.3e5;         % core radius (m)
         
         g = 1.3;        % used to calculate failure, m/s/s
         label = 'Europa';
     elseif isetup == 2  % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
-        Ri = Ro-2.0e3;          % inner radius of ice shell (m)
+        Ri = Ro-1.0e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
         label = 'Enceladus';
