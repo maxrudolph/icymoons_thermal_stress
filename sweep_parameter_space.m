@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true
+do_runs = false
 if do_runs
     for moon=0:1
         if moon==0
@@ -188,9 +188,18 @@ else% postprocess:
                     ss_thickness = real(ss_thickness);
                     warning('complex thickness encountered - this case is not reasonable');
                 end
-                [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/4);
-                [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/4);
-                phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
+                % old method for estimating phase lag:
+                % [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/4);
+                % [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/4);
+                % phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
+                % interpolate onto uniform time vector
+                % Estimate the phase lag using MATLAB builtin finddelay:
+                t_tmp = linspace(results.time(1),results.time(end),length(results.time)); % uniform time vector
+                dt = t_tmp(2) - t_tmp(1); 
+                actual_thickness_u = interp1(results.time,actual_thickness,t_tmp); % actual thickness, uniform time vector.
+                ss_thickness_u = interp1(results.time,ss_thickness,t_tmp); % steady state thickness, uniform time vector
+                phase_lag = finddelay(ss_thickness_u,actual_thickness_u)*dt/seconds_in_year/1e6;
+                
                 all_phase_lags(idQ,ithick) = phase_lag;
                 all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));
                 % calculate average heat flow
