@@ -45,7 +45,7 @@ if do_runs
         ndQ = 15;
         dQ = linspace(0.1,0.8,ndQ) ;
         nthick = 33;
-        thicknesses = linspace(1e3,20e3,nthick);
+        thicknesses = logspace(log10(500),log10(20e3),nthick);
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
@@ -188,8 +188,8 @@ else% postprocess:
                     ss_thickness = real(ss_thickness);
                     warning('complex thickness encountered - this case is not reasonable');
                 end
-                [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/2);
-                [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/2);
+                [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/4);
+                [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/4);
                 phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
                 all_phase_lags(idQ,ithick) = phase_lag;
                 all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));
@@ -260,7 +260,7 @@ else% postprocess:
         
         
         %% Plot outcomes of individual runs
-        run_plots = false;
+        run_plots = true;
         if run_plots
             for ithick=[1 5 9]
                 for idQ=[4 5 6]
