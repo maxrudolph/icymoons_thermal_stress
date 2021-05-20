@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = false
+do_runs = true
 if do_runs
     for moon=0:1
         if moon==0
@@ -46,7 +46,7 @@ if do_runs
         ndQ = 15;
         dQ = linspace(0.1,0.8,ndQ) ;
         nthick = 33;
-        thicknesses = logspace(log10(1e3),log10(20e3),nthick);
+        thicknesses = logspace(log10(2e3),log10(20e3),nthick);
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
