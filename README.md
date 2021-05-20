@@ -8,6 +8,7 @@ Requirements:
 - Fabio Crameri's scientific colormaps
 - Parallel computing toolbox
 
+Description of files:
 - The main driver program that sweeps parameter space is ```sweep_parameter_space.m```
 - The file ```thickening_ice_shell.m``` solves for the stresses in an initially stress-free thickening ice shell with no heat input.
 - Helper subroutines are located in the subdirectory ```core/```
