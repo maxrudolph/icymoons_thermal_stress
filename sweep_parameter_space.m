@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true
+do_runs = false
 if do_runs
     for moon=0:1
         if moon==0
@@ -16,6 +16,7 @@ if do_runs
             parameters.Ro = 1.561e6;
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-4;  % europa value
+            parameters.nr = 512;
             parameters.tensile_strength = 3e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
@@ -45,7 +46,7 @@ if do_runs
         ndQ = 15;
         dQ = linspace(0.1,0.8,ndQ) ;
         nthick = 33;
-        thicknesses = logspace(log10(500),log10(20e3),nthick);
+        thicknesses = logspace(log10(1e3),log10(20e3),nthick);
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
@@ -54,6 +55,10 @@ if do_runs
                 parameters1 = parameters;
                 parameters1.Ri = parameters.Ro-thicknesses(ithick);
                 parameters1.deltaQonQ = dQ(idQ);
+		if thicknesses(ithick) < 2e3
+			parameters1.relaxation_parameter = parameters1.relaxation_parameter/10;
+		end
+                parameters1.nr = min([512 ceil(thicknesses(ithick)/20)]);
                 all_parameters{idQ,ithick} = parameters1;
             end
         end

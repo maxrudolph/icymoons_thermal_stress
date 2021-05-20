@@ -17,7 +17,7 @@ save_start = parameters.save_start; % Time to begin saving (s)
 
 % Numerical parameters
 ifail = 1;              % index into list of times at which failure occurred.
-nr = 512;               % Number of nodes in radial direction
+nr = parameters.nr;               % Number of nodes in radial direction
 maxiter=1000;           % Maximum iterations in nonlinear loop
 % set up the grid
 grid_r = linspace(Ri,Ro,nr); % set up the grid
