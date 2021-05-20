@@ -9,6 +9,7 @@ Requirements:
 - Parallel computing toolbox
 
 Description of files:
+- The equations solved by the code are derived in the Supplemental Material: ```2021GL094421_Supplemental_Material.pdf```
 - The main driver program that sweeps parameter space is ```sweep_parameter_space.m```. This will produce about 16GB of output as .mat files.
 - The file ```thickening_ice_shell.m``` solves for the stresses in an initially stress-free thickening ice shell with no heat input.
 - Helper subroutines are located in the subdirectory ```core/```
