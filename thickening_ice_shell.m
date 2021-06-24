@@ -138,7 +138,7 @@ for isetup = 1:1
         hf=figure();
         subplot(1,4,1); % sigma_r and sigma_t
         h=plot(sigma_r_last,Ro-grid_r); hold on;
-        plot(sigma_r_last,Ro-grid_r,'--','Color',h.Color);
+        plot(sigma_t_last,Ro-grid_r,'--','Color',h.Color);
         % h=legend('\sigma_r','\sigma_t','Interpreter','tex'); h.AutoUpdate=false;
         title('Stress (Pa)','Interpreter','tex');
         ylabel('r (m)');
@@ -406,6 +406,9 @@ for isetup = 1:1
                 results.failure_P(ifail) = Pex;
                 results.failure_top(ifail) = min_depth;
                 results.failure_bottom(ifail) = max_depth;
+                results.failure_sigma_t{ifail} = sigma_t;
+                results.failure_sigma_r{ifail} = sigma_r;
+                results.failure_r{ifail} = grid_r;
                 ifail = ifail + 1;
                 now_failing = depth >= min_depth & depth <= max_depth;
                 failure_mask = failure_mask | now_failing;
@@ -571,6 +574,29 @@ for isetup = 1:1
         fig.PaperPosition(3) = 6.00;
         fig.Color = 'w';
         exportgraphics(gcf,[label '_thickening.eps'],'ContentType','vector');
+        
+        %% Make a figure showing tensile stress at the time of failure
+        figure();
+        hold on
+        for i=1:ifail-1
+            plot(results.failure_sigma_t{i}/1e6,(results.failure_r{i}(end)-results.failure_r{i})/1000);
+        end
+        set(gca,'YDir','reverse');
+        xlabel('Tensile Stress (MPa)');
+        ylabel('Depth (km)');%
+        %% write failure stresses to a file
+        odir = [label '_failure_stress'];
+        mkdir(odir);
+        for i=1:ifail-1
+            filename = [odir '/' sprintf('failure_stresses_%d_%.2fkm.csv',i,results.failure_thickness(i)/1000)];
+            fh = fopen(filename,'w');
+            fprintf(fh,'# Failure event %d, crack thickness %d m , ice shell thickness %d m\n',i,round(results.failure_thickness(i)),round(results.failure_r{i}(end)-results.failure_r{i}(1)));
+            fprintf(fh,'# Radius (m), sigma_t (Pa), sigma_r (Pa)\n');
+            for j=1:nr
+                fprintf(fh,'%e,%e,%e\n',results.failure_r{i}(j),results.failure_sigma_t{i}(j),results.failure_sigma_r{i}(j));
+            end
+            fclose(fh);
+        end
     end           
 end
     
