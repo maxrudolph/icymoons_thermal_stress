@@ -369,11 +369,11 @@ while time < t_end
             surface_failure = false;
             % find location where integral of stress is zero in upward
             % direction
-            ind = find( stress_above > 0,1,'last');
+            ind = find( stress_above >= 0,1,'last');
             depth_tmp = depth(midpoint_ind:end);
             min_depth = depth_tmp(ind);
             % find depth at which crack stops
-            ind = find(stress_below > 0,1,'last'); % net tension is ordered by increasing depth
+            ind = find(stress_below >= 0,1,'last'); % net tension is ordered by increasing depth
             depth_tmp = depth(midpoint_ind:-1:1);
             max_depth = depth_tmp(ind);
         end

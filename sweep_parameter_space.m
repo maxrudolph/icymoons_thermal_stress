@@ -6,7 +6,7 @@ addpath core;
 seconds_in_year = 3.1558e7;
 do_runs = true
 if do_runs
-    for moon=0:1
+    for moon=1:1
         if moon==0
             % Europa
             parameters = struct();
@@ -17,7 +17,7 @@ if do_runs
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-4;  % europa value
             parameters.nr = 512;
-            parameters.tensile_strength = 3e6;
+            parameters.tensile_strength = 1e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -35,7 +35,7 @@ if do_runs
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-2;
-            parameters.tensile_strength = 3e6;
+            parameters.tensile_strength = 1e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -66,7 +66,7 @@ if do_runs
         parfor irun=1:ndQ*nthick
             all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
         end
-        save([parameters.label '_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
+        save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
     end
 else% postprocess:
     %% Load results
