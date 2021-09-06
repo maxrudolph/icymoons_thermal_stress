@@ -396,11 +396,11 @@ while time < t_end
             results.failure_dP(ifail-1) = Pex-results.failure_P(ifail-1);
         end
         if all(failure_mask) && any(failure_mask(no_longer_failing))
-            if erupted_volume > 0
-                results.failure_erupted_volume(ifail-1) = erupted_volume;
-                results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
-                results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
-            end
+            
+            results.failure_erupted_volume(ifail-1) = erupted_volume;
+            results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
+            results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
+            
             erupted_volume = 0;
             erupted_volume_volumechange = 0;
             erupted_volume_pressurechange = 0;

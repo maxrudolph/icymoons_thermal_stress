@@ -5,6 +5,8 @@ close all;
 addpath core;
 seconds_in_year = 3.1558e7;
 do_runs = true
+strength_label = '1MPa';
+
 if do_runs
     for moon=1:1
         if moon==0
@@ -74,12 +76,12 @@ else% postprocess:
     addpath ~/sw/matlab/crameri
     
     for moon=0:1
-        clearvars -except seconds_in_year moon;
+        clearvars -except seconds_in_year moon strength_label;
         seconds_in_year = 3.1558e7;
         if moon==0
-            load('~/Europa_workspace.mat');
+            load(['./Europa_' strength_label '_workspace.mat']);
         else
-            load('~/Enceladus_workspace.mat');
+            load(['./Enceladus_' strength_label '_workspace.mat']);
         end
         
         
@@ -274,7 +276,7 @@ else% postprocess:
         
         
         %% Plot outcomes of individual runs
-        run_plots = true;
+        run_plots = false;
         if run_plots
             for ithick=[1 5 9]
                 for idQ=[4 5 6]
