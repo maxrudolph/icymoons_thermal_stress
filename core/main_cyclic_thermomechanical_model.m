@@ -383,6 +383,7 @@ while time < t_end
         results.failure_P(ifail) = Pex;
         results.failure_top(ifail) = min_depth;
         results.failure_bottom(ifail) = max_depth;
+        results.failure_initial(ifail) = midpoint_depth;
         ifail = ifail + 1;
         now_failing = depth >= min_depth & depth <= max_depth;
         failure_mask = failure_mask | now_failing;
@@ -469,6 +470,6 @@ results.failure_dP = results.failure_dP(fail_mask);
 results.failure_thickness = results.failure_thickness(fail_mask);
 results.failure_top = results.failure_top(fail_mask);
 results.failure_bottom = results.failure_bottom(fail_mask);
-results.failure_erupted_volume = results.failure_erupted_volume(fail_mask);
-results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange(fail_mask);
-results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange(fail_mask);
+results.failure_erupted_volume = results.failure_erupted_volume;%(fail_mask);
+results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange;%(fail_mask);
+results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange;%(fail_mask);

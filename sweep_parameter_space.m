@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true
+do_runs = false
 strength_label = '1MPa';
 
 if do_runs
@@ -109,6 +109,12 @@ else% postprocess:
                 all_results{idQ,ithick} = results;
                 time_mask = results.failure_time >= 2*parameters.perturbation_period/seconds_in_year/1e6;
                 % calculate the total volume erupted
+                if length(results.failure_erupted_volume) < length(time_mask)
+                   warning('padding failure_erupted_volume');
+                   results.failure_erupted_volume(end+1:length(time_mask)) = 0;
+                   all_results{idQ,ithick} = results;
+                end
+                
                 all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
                 all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
                 % calculate the average thickness.
@@ -276,7 +282,7 @@ else% postprocess:
         
         
         %% Plot outcomes of individual runs
-        run_plots = false;
+        run_plots = true;
         if run_plots
             for ithick=[1 5 9]
                 for idQ=[4 5 6]
