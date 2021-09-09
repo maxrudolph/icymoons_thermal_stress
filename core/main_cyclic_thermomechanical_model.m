@@ -92,6 +92,7 @@ results.failure_thickness = zeros(1,nsave);
 results.failure_top = zeros(1,nsave);
 results.failure_bottom = zeros(1,nsave);
 results.failure_erupted_volume = zeros(1,nsave);
+results.failure_eruption_time = zeros(1,nsave);
 results.failure_erupted_volume_pressurechange = zeros(1,nsave);
 results.failure_erupted_volume_volumechange = zeros(1,nsave);
 erupted_volume = 0;
@@ -397,7 +398,7 @@ while time < t_end
             results.failure_dP(ifail-1) = Pex-results.failure_P(ifail-1);
         end
         if all(failure_mask) && any(failure_mask(no_longer_failing))
-            
+            results.failure_eruption_time(ifail-1) = time;
             results.failure_erupted_volume(ifail-1) = erupted_volume;
             results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
             results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
@@ -470,6 +471,8 @@ results.failure_dP = results.failure_dP(fail_mask);
 results.failure_thickness = results.failure_thickness(fail_mask);
 results.failure_top = results.failure_top(fail_mask);
 results.failure_bottom = results.failure_bottom(fail_mask);
+results.failure_initial = results.failure_initial(fail_mask);
+results.failure_eruption_time = results.failure_eruption_time;
 results.failure_erupted_volume = results.failure_erupted_volume;%(fail_mask);
 results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange;%(fail_mask);
 results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange;%(fail_mask);
