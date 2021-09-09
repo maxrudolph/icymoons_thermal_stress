@@ -472,7 +472,12 @@ results.failure_thickness = results.failure_thickness(fail_mask);
 results.failure_top = results.failure_top(fail_mask);
 results.failure_bottom = results.failure_bottom(fail_mask);
 results.failure_initial = results.failure_initial(fail_mask);
-results.failure_eruption_time = results.failure_eruption_time;
-results.failure_erupted_volume = results.failure_erupted_volume;%(fail_mask);
-results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange;%(fail_mask);
-results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange;%(fail_mask);
+
+ifail2 = find(results.failure_eruption_time>0,1,'last');
+ifail1 = find(results.failure_eruption_time>=save_start,1,'first');
+fail_mask = false(size(results.failure_eruption_time));
+fail_mask(ifail1:ifail2) = true;
+results.failure_eruption_time = results.failure_eruption_time(fail_mask);
+results.failure_erupted_volume = results.failure_erupted_volume(fail_mask);
+results.failure_erupted_volume_pressurechange = results.failure_erupted_volume_pressurechange(fail_mask);
+results.failure_erupted_volume_volumechange = results.failure_erupted_volume_volumechange(fail_mask);
