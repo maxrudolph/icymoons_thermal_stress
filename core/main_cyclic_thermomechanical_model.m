@@ -295,7 +295,7 @@ while time < t_end
         end
         if all(failure_mask)
             % Calculate the volume erupted (dP)*beta*V0 + V-V0
-            pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ro^3-Ri^3));
+            pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ri^3-Rc^3));
             volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr
             erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
             erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
