@@ -91,6 +91,7 @@ results.failure_dP = zeros(1,nsave);
 results.failure_thickness = zeros(1,nsave);
 results.failure_top = zeros(1,nsave);
 results.failure_bottom = zeros(1,nsave);
+results.failure_initial = zeros(1,nsave);
 results.failure_erupted_volume = zeros(1,nsave);
 results.failure_eruption_time = zeros(1,nsave);
 results.failure_erupted_volume_pressurechange = zeros(1,nsave);
@@ -296,7 +297,7 @@ while time < t_end
         if all(failure_mask)
             % Calculate the volume erupted (dP)*beta*V0 + V-V0
             pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ri^3-Rc^3));
-            volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr
+            volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr            
             erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
             erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
             erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
@@ -381,7 +382,7 @@ while time < t_end
         fprintf('Relieving stresses between %e-%e m\n',min_depth,max_depth);
         results.failure_thickness(ifail) = max_depth-min_depth;
         results.failure_time(ifail) = time;
-        results.failure_P(ifail) = Pex;
+        results.failure_P(ifail) = Pex;        
         results.failure_top(ifail) = min_depth;
         results.failure_bottom(ifail) = max_depth;
         results.failure_initial(ifail) = midpoint_depth;
