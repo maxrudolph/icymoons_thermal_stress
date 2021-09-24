@@ -90,6 +90,7 @@ else% postprocess:
         all_failure_events = zeros(size(all_results));
         all_failure_fraction = zeros(size(all_results));
         all_actual_thickness = zeros(size(all_results));
+        all_failure_initial = zeros(size(all_results));
         % Convert thickness into Q0
         Qtots = zeros(size(thicknesses));
         
@@ -117,6 +118,7 @@ else% postprocess:
                 
                 all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
                 all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
+                all_failure_initial(idQ,ithick) = mean( results.failure_initial(time_mask) );
                 % calculate the average thickness.
                 thickness = parameters.Ro-(results.Ri-results.z);
                 average_thickness = 1/(results.time(end)-results.time(1))*sum( (thickness(1:end-1) + thickness(2:end))/2 .* diff(results.time));
@@ -128,11 +130,12 @@ else% postprocess:
                 end
             end
         end
+        %% 
         if moon==0
             figure(901);
             clf;
-            t1=tiledlayout(3,2,'Padding','none','TileSpacing','none','Units','centimeters');
-            t1.OuterPosition(3:4) = [18 12];
+            t1=tiledlayout(4,2,'Padding','none','TileSpacing','none','Units','centimeters');
+            t1.OuterPosition(3:4) = [18 15];
         else
             figure(901);
         end
@@ -162,8 +165,16 @@ else% postprocess:
         xlabel('Equilibrium Thickness (km)');
                 set(gca,'XLim',[3 20]);
 
-        % Panel 3
+        % Panel 3 
         nexttile(5+moon);
+        contourf(thicknesses/1e3,dQ,all_failure_initial/1e3,16,'Color','none');        
+        hcb=colorbar();
+        hcb.Label.String = 'Failure Depth (km)';
+        set(gca,'XLim',[3 20]);
+        ylabel('\Delta q/q_0');
+
+        % Panel 4
+        nexttile(7+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
         failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
         contourf(thicknesses/1e3,dQ,failures_per_cycle,max(failures_per_cycle(:)),'Color','none');
@@ -288,8 +299,8 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick=[3]
-                for idQ=[3]
+            for ithick=[3 33]
+                for idQ=[3 15]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
