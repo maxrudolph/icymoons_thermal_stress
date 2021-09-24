@@ -8,7 +8,7 @@ do_runs = false
 strength_label = '1MPa';
 
 if do_runs
-    for moon=1:1
+    for moon=0:1
         if moon==0
             % Europa
             parameters = struct();
@@ -19,7 +19,7 @@ if do_runs
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-4;  % europa value
             parameters.nr = 512;
-            parameters.tensile_strength = 1e6;
+            parameters.tensile_strength = 3e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -37,7 +37,7 @@ if do_runs
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-2;
-            parameters.tensile_strength = 1e6;
+            parameters.tensile_strength = 3e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -150,6 +150,7 @@ else% postprocess:
             caxis([0 1])
         end
         title(parameters.label);
+        set(gca,'XLim',[3 20]);
         
         % Panel 2
         nexttile(3+moon);
@@ -159,13 +160,15 @@ else% postprocess:
         hcb.Label.String = 'Fractional penetration';
         ylabel('\Delta q/q_0');
         xlabel('Equilibrium Thickness (km)');
-        
+                set(gca,'XLim',[3 20]);
+
         % Panel 3
         nexttile(5+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
         contourf(thicknesses/1e3,dQ,all_failure_events/(dt/parameters.perturbation_period),0:20,'Color','none');
         hcb=colorbar();
-        
+                set(gca,'XLim',[3 20]);
+
         hcb.Label.String = 'Failure events per cycle';
         ylabel('\Delta q/q_0');
         xlabel('Equilibrium Thickness (km)');
@@ -284,8 +287,8 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick=[1 5 9]
-                for idQ=[4 5 6]
+            for ithick=[3]
+                for idQ=[3]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
