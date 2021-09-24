@@ -57,9 +57,9 @@ if do_runs
                 parameters1 = parameters;
                 parameters1.Ri = parameters.Ro-thicknesses(ithick);
                 parameters1.deltaQonQ = dQ(idQ);
-		if thicknesses(ithick) < 2e3
-			parameters1.relaxation_parameter = parameters1.relaxation_parameter/10;
-		end
+                if thicknesses(ithick) < 2e3
+                    parameters1.relaxation_parameter = parameters1.relaxation_parameter/10;
+                end
                 parameters1.nr = min([512 ceil(thicknesses(ithick)/20)]);
                 all_parameters{idQ,ithick} = parameters1;
             end
@@ -111,9 +111,9 @@ else% postprocess:
                 time_mask = results.failure_time >= 2*parameters.perturbation_period/seconds_in_year/1e6;
                 % calculate the total volume erupted
                 if length(results.failure_erupted_volume) < length(time_mask)
-                   warning('padding failure_erupted_volume');
-                   results.failure_erupted_volume(end+1:length(time_mask)) = 0;
-                   all_results{idQ,ithick} = results;
+                    warning('padding failure_erupted_volume');
+                    results.failure_erupted_volume(end+1:length(time_mask)) = 0;
+                    all_results{idQ,ithick} = results;
                 end
                 
                 all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
@@ -130,7 +130,7 @@ else% postprocess:
                 end
             end
         end
-        %% 
+        %%
         if moon==0
             figure(901);
             clf;
@@ -163,31 +163,31 @@ else% postprocess:
         hcb.Label.String = 'Fractional penetration';
         ylabel('\Delta q/q_0');
         xlabel('Equilibrium Thickness (km)');
-                set(gca,'XLim',[3 20]);
-
-        % Panel 3 
+        set(gca,'XLim',[3 20]);
+        
+        % Panel 3
         nexttile(5+moon);
-        contourf(thicknesses/1e3,dQ,all_failure_initial/1e3,16,'Color','none');        
+        contourf(thicknesses/1e3,dQ,all_failure_initial/1e3,16,'Color','none');
         hcb=colorbar();
         hcb.Label.String = 'Failure Depth (km)';
         set(gca,'XLim',[3 20]);
         ylabel('\Delta q/q_0');
-
+        
         % Panel 4
         nexttile(7+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
         failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
         contourf(thicknesses/1e3,dQ,failures_per_cycle,max(failures_per_cycle(:)),'Color','none');
         hcb=colorbar();
-                set(gca,'XLim',[3 20]);
-
+        set(gca,'XLim',[3 20]);
+        
         hcb.Label.String = 'Failure events per cycle';
         ylabel('\Delta q/q_0');
         xlabel('Equilibrium Thickness (km)');
         colormap(crameri('davos'));
         
         if moon == 1
-%             exportgraphics(gcf,[parameters.label '_regimes.eps']);
+            %             exportgraphics(gcf,[parameters.label '_regimes.eps']);
         end
         %% Look at phase lag between qb and thickness
         all_phase_lags = zeros(ndQ,nthick);
@@ -223,7 +223,7 @@ else% postprocess:
                 % interpolate onto uniform time vector
                 % Estimate the phase lag using MATLAB builtin finddelay:
                 t_tmp = linspace(results.time(1),results.time(end),length(results.time)); % uniform time vector
-                dt = t_tmp(2) - t_tmp(1); 
+                dt = t_tmp(2) - t_tmp(1);
                 actual_thickness_u = interp1(results.time,actual_thickness,t_tmp); % actual thickness, uniform time vector.
                 ss_thickness_u = interp1(results.time,ss_thickness,t_tmp); % steady state thickness, uniform time vector
                 phase_lag = finddelay(ss_thickness_u,actual_thickness_u)*dt/seconds_in_year/1e6;
@@ -297,10 +297,10 @@ else% postprocess:
         
         
         %% Plot outcomes of individual runs
-        run_plots = true;
+        run_plots = false;
         if run_plots
-            for ithick=[3 33]
-                for idQ=[3 15]
+            for ithick=[3 5 6]
+                for idQ=[3 5 6]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
