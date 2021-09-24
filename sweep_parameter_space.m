@@ -163,7 +163,8 @@ else% postprocess:
         % Panel 3
         nexttile(5+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
-        contourf(thicknesses/1e3,dQ,all_failure_events/(dt/parameters.perturbation_period),0:20,'Color','none');
+        failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
+        contourf(thicknesses/1e3,dQ,failures_per_cycle,max(failures_per_cycle(:)),'Color','none');
         hcb=colorbar();
         
         hcb.Label.String = 'Failure events per cycle';
@@ -172,7 +173,7 @@ else% postprocess:
         colormap(crameri('davos'));
         
         if moon == 1
-            exportgraphics(gcf,[parameters.label '_regimes.eps']);
+%             exportgraphics(gcf,[parameters.label '_regimes.eps']);
         end
         %% Look at phase lag between qb and thickness
         all_phase_lags = zeros(ndQ,nthick);
@@ -316,6 +317,8 @@ else% postprocess:
                     caxis([-1 1]*max(abs(caxis())));
                     colormap(crameri('vik'));
                     plot(results.time(mask)/seconds_in_year,((parameters.Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+                    % plot the location of initial failure.
+                    plot(results.failure_time/seconds_in_year,results.failure_initial/1000,'r.')
                     set(gca,'YLim',[0 ceil(1+max(((parameters.Ro-results.Ri(mask))+results.z(mask))/1000))]);
                     set(gca,'YDir','reverse');
                     ax1 = gca();
