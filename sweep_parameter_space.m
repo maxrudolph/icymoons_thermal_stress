@@ -78,6 +78,7 @@ else% postprocess:
     for moon=0:1
         clearvars -except seconds_in_year moon strength_label;
         seconds_in_year = 3.1558e7;
+        disp('loading data');
         if moon==0
             load(['./Europa_' strength_label '_workspace.mat']);
         else
@@ -86,6 +87,7 @@ else% postprocess:
         
         
         %% Analyze models
+        disp('analyzing models');
         all_erupted_volume = zeros(size(all_results));
         all_failure_events = zeros(size(all_results));
         all_failure_fraction = zeros(size(all_results));
@@ -187,7 +189,7 @@ else% postprocess:
         colormap(crameri('davos'));
         
         if moon == 1
-            %             exportgraphics(gcf,[parameters.label '_regimes.eps']);
+            exportgraphics(gcf,['Figure2_' strength_label '_regimes.eps']);
         end
         %% Look at phase lag between qb and thickness
         all_phase_lags = zeros(ndQ,nthick);
@@ -290,7 +292,7 @@ else% postprocess:
         ylabel('\Delta q/q_0');
         xlabel('Equilibrium Thickness (km)');
         if moon == 1
-            exportgraphics(gcf,'combined_total_heat_flow.eps');
+            exportgraphics(gcf,['Figure3_' strength_label '.eps');
         end
         %% Plot maximum fractional penetration
         figure();
