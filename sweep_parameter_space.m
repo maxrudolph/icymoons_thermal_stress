@@ -5,7 +5,7 @@ close all;
 addpath core;
 seconds_in_year = 3.1558e7;
 do_runs = false
-strength_label = '1MPa';
+strength_label = '3MPa';
 
 if do_runs
     for moon=0:1
@@ -85,6 +85,18 @@ else% postprocess:
             load(['./Enceladus_' strength_label '_workspace.mat']);
         end
         
+        % data selection
+        % to make plotting simpler, select data corresponding to
+        % interesting part of parameter space for each tensile strength
+        if strcmp(strength_label,'1MPa')
+            mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
+        else
+            mask = thicknesses <= 2e4   & thicknesses >= 3e3;
+        end
+        all_results = all_results(:,mask);
+        all_parameters = all_parameters(:,mask);
+        thicknesses = thicknesses(mask);
+        nthick = length(thicknesses);
         
         %% Analyze models
         disp('analyzing models');
@@ -117,10 +129,15 @@ else% postprocess:
                     results.failure_erupted_volume(end+1:length(time_mask)) = 0;
                     all_results{idQ,ithick} = results;
                 end
-                
-                all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
-                all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
-                all_failure_initial(idQ,ithick) = mean( results.failure_initial(time_mask) );
+                if ~isempty(time_mask)
+                    all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
+                    all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
+                    all_failure_initial(idQ,ithick) = max( results.failure_initial(time_mask) );
+                else
+                    all_erupted_volume(idQ,ithick) = NaN;
+                    all_failure_events(idQ,ithick) = NaN;
+                    all_failure_initial(idQ,ithick) = NaN;
+                end
                 % calculate the average thickness.
                 thickness = parameters.Ro-(results.Ri-results.z);
                 average_thickness = 1/(results.time(end)-results.time(1))*sum( (thickness(1:end-1) + thickness(2:end))/2 .* diff(results.time));
@@ -133,6 +150,7 @@ else% postprocess:
             end
         end
         %%
+        disp('plotting');
         if moon==0
             figure(901);
             clf;
@@ -150,12 +168,12 @@ else% postprocess:
         hcb.Label.String = 'Erupted Volume (m/Myr)';
         colormap(crameri('davos'));
         ylabel('\Delta q/q_0');
-        xlabel('Equilibrium Thickness (km)');
+%         xlabel('Equilibrium Thickness (km)');
         if( max(all_erupted_volume(:))==0 )
             caxis([0 1])
         end
         title(parameters.label);
-        set(gca,'XLim',[3 20]);
+        
         
         % Panel 2
         nexttile(3+moon);
@@ -164,24 +182,22 @@ else% postprocess:
         hcb = colorbar();
         hcb.Label.String = 'Fractional penetration';
         ylabel('\Delta q/q_0');
-        xlabel('Equilibrium Thickness (km)');
-        set(gca,'XLim',[3 20]);
+%         xlabel('Equilibrium Thickness (km)');       
         
         % Panel 3
         nexttile(5+moon);
         contourf(thicknesses/1e3,dQ,all_failure_initial/1e3,16,'Color','none');
         hcb=colorbar();
-        hcb.Label.String = 'Failure Depth (km)';
-        set(gca,'XLim',[3 20]);
+        hcb.Label.String = 'Failure Depth (km)';        
         ylabel('\Delta q/q_0');
         
         % Panel 4
         nexttile(7+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
         failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
-        contourf(thicknesses/1e3,dQ,failures_per_cycle,max(failures_per_cycle(:)),'Color','none');
+        contourf(thicknesses/1e3,dQ,failures_per_cycle,16,'Color','none');
         hcb=colorbar();
-        set(gca,'XLim',[3 20]);
+        
         
         hcb.Label.String = 'Failure events per cycle';
         ylabel('\Delta q/q_0');
@@ -228,7 +244,10 @@ else% postprocess:
                 dt = t_tmp(2) - t_tmp(1);
                 actual_thickness_u = interp1(results.time,actual_thickness,t_tmp); % actual thickness, uniform time vector.
                 ss_thickness_u = interp1(results.time,ss_thickness,t_tmp); % steady state thickness, uniform time vector
-                phase_lag = finddelay(ss_thickness_u,actual_thickness_u)*dt/seconds_in_year/1e6;
+%                 phase_lag = finddelay(ss_thickness_u,actual_thickness_u)*dt/seconds_in_year/1e6;
+                [~,p1] = findpeaks(actual_thickness_u,'MinPeakProminence',100);
+                [~,p2] = findpeaks(ss_thickness_u,'MinPeakProminence',100);
+                phase_lag = mean( abs(t_tmp(p2) - t_tmp(p1)) )/seconds_in_year/1e6; 
                 
                 all_phase_lags(idQ,ithick) = phase_lag;
                 all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));
@@ -248,11 +267,11 @@ else% postprocess:
         end
         
         nexttile(1+moon)
-        contourf(thicknesses/1e3,dQ,all_phase_lags,20,'Color','none'); crameri('davos')
+        contourf(thicknesses/1e3,dQ,all_phase_lags,50,'Color','none'); crameri('davos')
         hcb=colorbar();
         hcb.Label.String='Lag (Myr)';
         ylabel('\Delta q/q_0');
-        xlabel('Equilibrium Thickness (km)');
+%         xlabel('Equilibrium Thickness (km)');
         text(0.05,0.85,char('A'+3*moon),'Units','normalized','FontSize',12);
         title(parameters.label);
         
@@ -261,7 +280,7 @@ else% postprocess:
         hcb=colorbar();
         hcb.Label.String='\Delta h/\Delta h_{eq}';
         ylabel('\Delta q/q_0');
-        xlabel('Equilibrium Thickness (km)');
+%         xlabel('Equilibrium Thickness (km)');
         text(0.05,0.85,char('B'+3*moon),'Units','normalized','FontSize',12);
         caxis([0 1])
         
@@ -273,7 +292,7 @@ else% postprocess:
         xlabel('Equilibrium Thickness (km)');
         text(0.05,0.85,char('C'+3*moon),'Units','normalized','FontSize',12);
         if moon == 1
-            exportgraphics(gcf,'combined_lag_eqlm.eps');
+            exportgraphics(gcf,['combined_lag_eqlm_' strength_label '.eps']);
         end
         %% plot total heat flow
         if moon==0
@@ -292,17 +311,17 @@ else% postprocess:
         ylabel('\Delta q/q_0');
         xlabel('Equilibrium Thickness (km)');
         if moon == 1
-            exportgraphics(gcf,['Figure3_' strength_label '.eps');
+            exportgraphics(gcf,['Figure3_' strength_label '.eps']);
         end
         %% Plot maximum fractional penetration
         figure();
         
         
         %% Plot outcomes of individual runs
-        run_plots = false;
+        run_plots = true;
         if run_plots
-            for ithick=[3 5 6]
-                for idQ=[3 5 6]
+            for ithick=14
+                for idQ=[ 5 ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
@@ -328,44 +347,44 @@ else% postprocess:
                     figure();
                     t=tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
                     nexttile
-                    contourf(results.time(mask)/seconds_in_year,results.save_depths/1000,results.sigma_t(:,mask),16,'Color','none'); %shading flat;
+                    contourf(results.time(mask)/seconds_in_year/1e6,results.save_depths/1000,results.sigma_t(:,mask),16,'Color','none'); %shading flat;
                     hold on
                     caxis([-1 1]*max(abs(caxis())));
                     colormap(crameri('vik'));
-                    plot(results.time(mask)/seconds_in_year,((parameters.Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+                    plot(results.time(mask)/seconds_in_year/1e6,((parameters.Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
                     % plot the location of initial failure.
-                    plot(results.failure_time/seconds_in_year,results.failure_initial/1000,'r.')
+                    plot(results.failure_time/seconds_in_year/1e6,results.failure_initial/1000,'r.')
                     set(gca,'YLim',[0 ceil(1+max(((parameters.Ro-results.Ri(mask))+results.z(mask))/1000))]);
                     set(gca,'YDir','reverse');
                     ax1 = gca();
                     hcb = colorbar();
                     hcb.Label.String = 'Tensile Stress (Pa)';
-                    xlabel('Time (years)');
+%                     xlabel('Time (Myr)');
                     ylabel('Depth (km)');
                     hold on;
                     for i=1:ifail
-                        plot(results.failure_time(i)/seconds_in_year*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
+                        plot(results.failure_time(i)/1e6/seconds_in_year*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
                     end
                     title(sprintf('%s : \\Delta Q/Q_0 = %.2f, H_0=%.1f km',parameters.label,parameters.deltaQonQ,(parameters.Ro-parameters.Ri)/1000));
                     
                     nexttile
-                    plot(results.time(mask)/seconds_in_year,results.Pex(mask));
+                    plot(results.time(mask)/seconds_in_year/1e6,results.Pex(mask));
                     ylabel('Ocean overpressure (Pa)');
                     ax2 = gca();
                     ax2.Position(3) = ax1.Position(3);
                     ax2.XLim = ax1.XLim;
                     hold on
-                    plot(results.failure_time(1:ifail)/seconds_in_year,results.failure_P(1:ifail),'ro');
-                    plot(results.failure_time(1:ifail)/seconds_in_year,(results.failure_P(1:ifail)+results.failure_dP(1:ifail)),'g.');
+                    plot(results.failure_time(1:ifail)/seconds_in_year/1e6,results.failure_P(1:ifail),'ro');
+                    plot(results.failure_time(1:ifail)/seconds_in_year/1e6,(results.failure_P(1:ifail)+results.failure_dP(1:ifail)),'g.');
                     nexttile
                     hold on;
-                    for i=1:ifail
-                        plot(results.failure_time(i)/seconds_in_year*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');
+                    for i=1:length(results.failure_eruption_time)
+                        plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');
                         %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_volumechange(i)/(4*pi*Ro^2),'go');
                         %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_pressurechange(i)/(4*pi*Ro^2),'rx');
                     end
                     ylabel('Erupted volume (m)');
-                    xlabel('Time (years)');
+                    xlabel('Time (Myr)');
                     ax3=gca();
                     ax3.XLim = ax1.XLim;
                     ax3.Position(3) = ax1.Position(3);
