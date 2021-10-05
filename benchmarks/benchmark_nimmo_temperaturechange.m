@@ -41,7 +41,7 @@ mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s gi
 % Thermal properties
 Cp = 2100; %heat capacity of ice J/kg/K
 kappa = 1e-6;% m/s/s
-k=kappa*rho_i*Cp;
+k=@(T) kappa*rho_i*Cp;
 
 % Benchmark-specific things
 % temperature solution
@@ -201,7 +201,7 @@ while time < t_end
     else
         Tg = Tb-(T_last(2)-Tb);
         dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
-        qb = -k*dTdr_b_last;
+        qb = -k(Tb)*dTdr_b_last;
         
         % determine the timestep
         dt = dtmax;
@@ -311,11 +311,12 @@ while time < t_end
 end
 %% add legends
 for i=1:length(plot_times)
-    labels{i} = sprintf('%.1f',plot_times(i)/seconds_in_year/1e6);
+    labels{i} = sprintf('%.1f Myr',plot_times(i)/seconds_in_year/1e6);
 end
 figure( fig1a.h );
 axis(fig1a.ax(1));
 legend(labels,'Location','southeast');
+text(0.05,0.9,'A','Units','normalized','FontSize',16);
 
 
 %% Nimmo's figure 1b
@@ -329,6 +330,8 @@ plot(time_store(1:isave-1)/seconds_in_year/1e6,sigma_t_store(:,1:isave-1)/1e6);
 legend(labels,'Location','southeast');
 xlabel('Time (Myr)');
 ylabel('Tangential Stress (MPa)');
+text(0.05,0.9,'B','Units','normalized','FontSize',16);
+
 set(gcf,'Color','w');
 h=gcf;
 h.Position(3:4) = [390 580];
