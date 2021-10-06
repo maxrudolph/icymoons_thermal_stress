@@ -1,5 +1,5 @@
 # icymoons_thermal_stress
-**This repository contains codes to reproduce the results in:\\
+**This repository contains codes to reproduce the results in:
 Rudolph, M.L., Manga, M., Walker, M., and Rhoden, A.R. (in review). Cooling crusts create concomittant cryovolcanic conduits.**
 
 Thermal and stress evolution of icy moons, with application to Europa and Enceladus.
