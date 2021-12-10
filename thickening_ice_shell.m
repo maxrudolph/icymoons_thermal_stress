@@ -10,12 +10,16 @@ nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for isetup = 1:1
+    viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+    viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
+    viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
+    
     if isetup == 1      % Europa
         Ro = 1.561e6;          % outer radius of ice shell (m)
         Ri = Ro-1.0e3;         % inner radius of ice shell (m)
         Rc = Ro-1.3e5;         % core radius (m)
-        
         g = 1.3;        % used to calculate failure, m/s/s
+        
         label = 'Europa';
     elseif isetup == 2  % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
@@ -51,7 +55,11 @@ for isetup = 1:1
         rho_w=1000;     % density of water (kg/m^3)
         Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
         mub=1e15;       % basal viscosity (Pa-s)
-        mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
+        if viscosity_model == 0
+            mu = @(T,stress) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
+        elseif viscosity_model == 1
+            mu = @(T,stress) goldsby_kohlstedt(stress,T,viscosity.d,viscosity.P); % Goldsby-Kohlstedt effective viscosity
+        end
         % Failure criterion:
         tensile_strength = 3e6; % tensile strength, Pa
         cohesion = 2e7;  % plastic yield strength
@@ -72,7 +80,7 @@ for isetup = 1:1
         
         Qbelow = @(time) 0;
         % calculate maxwell time at 100, 270
-        fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100)/E,mu(Tb)/E);
+        fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100,0)/E,mu(Tb,0)/E);
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
         t_end = 1e7*seconds_in_year;%  3*perturbation_period;
