@@ -302,7 +302,7 @@ else% postprocess:
         end
         
         nexttile(1+moon)
-        contourf(thicknesses/1e3,dQ,all_phase_lags,50,'Color','none'); crameri('davos')
+        contourf(thicknesses/1e3,dQ,all_phase_lags,20,'Color','none'); crameri('davos')
         hcb=colorbar();
         hcb.Label.String='Lag (Myr)';
         if ~moon
@@ -361,8 +361,8 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick=[1 3 14 26]
-                for idQ=[ 5 15]
+            for ithick=[1 3 14 nthick]
+                for idQ=[ 5 ndQ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
