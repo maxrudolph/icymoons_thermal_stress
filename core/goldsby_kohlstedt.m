@@ -28,9 +28,9 @@ D0b = 5.8e-4; %/* m^2/s - this is lower of two upper bounde presented in text */
 Dv = D0v*exp(-Qv./(R*T));
 Db = D0b*exp(-Qb./(R*T));
 %     /* note that all units above are SI, so strain rate will be in 1/s for stress in Pa */
-ediff = 42.0*Vm./(R*T*d*d).*(Dv + pi*delta/d*Db );
+ediff0 = 42.0*Vm./(R*T*d*d).*(Dv + pi*delta/d*Db );
 
-ediff = ediff .* s;
+ediff = ediff0 .* s;
 %   {
 %     PetscScalar A,n,Q;
 egbs = zeros(size(T));
@@ -76,4 +76,4 @@ etot = ediff + 1.0./(1.0./ebs + 1.0./egbs) + edisl;
 etaeff = s./(2.0*etot);
 
 mask = s < 1e0; %{/* if stress is really small (i.e. for first timestep), we cannot compute dislocation creep or gbs strain rates */
-etaeff(mask) = 0.5./ediff(mask);
+etaeff(mask) = 0.5./ediff0(mask);

@@ -10,7 +10,7 @@ nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for isetup = 1:1
-    viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+    viscosity_model = 1; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
     
@@ -35,7 +35,7 @@ for isetup = 1:1
     for inr=1:length(nrs)
         ifail = 1; % index into list of times at which failure occurred.
         nr = nrs(inr); % number of grid points
-        relaxation_parameter=1e-2; % used in nonlinear loop.
+        relaxation_parameter=1e-3; % used in nonlinear loop.
         maxiter=1000;
         % Define physical constants and parameters
         % Physical constants
@@ -126,6 +126,7 @@ for isetup = 1:1
         % initialize solution vectors (IC)
         sigma_r_last = zeros(nr,1); % initial stresses
         sigma_t_last = zeros(nr,1); % initial stresses
+        siiD_last = zeros(nr,1); % deviatoric stress invariant - used for viscosity
         T_last = zeros(nr,1);
         % Initialize T with steady numerical solution.
         %T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);
@@ -257,33 +258,55 @@ for isetup = 1:1
                 end
                 
                 % calculate viscosity at each node
-                mu_node = zeros(nr,1);
-                mu_node(:) = mu(T);
-                % reduce Maxwell time in region experiencing failure
-                if( any(failure_mask) )
-                    minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
-                    mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
-                    above_crack = find( failure_mask,1,'last');
-                    above_crack_mask = false(size(failure_mask));
-                    above_crack_mask( above_crack+1 : end ) = true;
-                    %                 mu_node(above_crack_mask) = min( mu_node(above_crack_mask),100*E*dt ); % limit maximum viscosity to 100*maxwell time
-                    %                 for i=1:3
-                    %                 tmp = exp(smooth(log( mu_node )));
-                    %                 mu_node(~failure_mask) = tmp(~failure_mask);
-                    %                 end
-                    %                 mu_node = exp(smooth(log( mu_node )));
-                    if iter==1
-                        Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
+                visc_converged = false;
+                visc_iter = 100;
+                ivisc = 1;
+                while ~visc_converged && ivisc <= visc_iter
+                    % compute mu for current siiD
+                    if ivisc == 1
+                        siiD = siiD_last;
+                    else
+                        siiD = siiD_post;
                     end
+                    
+                    
+                    mu_node = zeros(nr,1);
+                    mu_node(:) = mu(T,siiD);
+                    % reduce Maxwell time in region experiencing failure
+                    if( any(failure_mask) )
+                        minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
+                        mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
+                        above_crack = find( failure_mask,1,'last');
+                        above_crack_mask = false(size(failure_mask));
+                        above_crack_mask( above_crack+1 : end ) = true;
+                        %                 mu_node(above_crack_mask) = min( mu_node(above_crack_mask),100*E*dt ); % limit maximum viscosity to 100*maxwell time
+                        %                 for i=1:3
+                        %                 tmp = exp(smooth(log( mu_node )));
+                        %                 mu_node(~failure_mask) = tmp(~failure_mask);
+                        %                 end
+                        %                 mu_node = exp(smooth(log( mu_node )));
+                        if iter==1
+                            Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
+                        end
+                    end
+                    if all(failure_mask)
+                        % Crack reached ocean. Reset overpressure to zero.
+                        Pex=0;
+                        converged=true;
+                    end
+                    % No failure - calculate stresses as usual
+                    [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
+                    siiD_post = sqrt( 0.5*(sigma_rD.^2 + 2*sigma_tD.^2) );
+                    norm_change = norm(siiD_post-siiD)/norm(siiD);
+%                     disp([num2str(ivisc) ' change in norm of siiD:' num2str(norm_change)]);
+                    if isnan(norm_change)
+                        keyboard
+                    elseif norm_change < 1e-2
+                        visc_converged = true;
+                    end
+                        
+                    ivisc = ivisc+1;
                 end
-                if all(failure_mask)
-                    % Crack reached ocean. Reset overpressure to zero.
-                    Pex=0;
-                    converged=true;
-                end
-                % No failure - calculate stresses as usual
-                [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
-                
                 % 5. Calculate the strains
                 dT = T-T_last;
                 dr1 = grid_r(2)-grid_r(1);
@@ -309,7 +332,7 @@ for isetup = 1:1
                 ei = 2*de_t + de_r; % first invariant
                 de_tD = de_t - 1/3*ei;
                 de_rD = de_r - 1/3*ei;
-                eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric stress
+                eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric strain
                 
                 % re-calculate excess pressure using new uplift
                 %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
@@ -450,6 +473,7 @@ for isetup = 1:1
             % 6. advance to next time step and plot (if needed)
             sigma_r_last = sigma_r;
             sigma_t_last = sigma_t;
+            siiD_last = siiD;
             T_last = T;
             er_last = er;
             et_last = et;
