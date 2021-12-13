@@ -9,33 +9,41 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 1:1
+for isetup = 1:2
     viscosity_model = 1; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
     
     if isetup == 1      % Europa
         Ro = 1.561e6;          % outer radius of ice shell (m)
-        Ri = Ro-1.0e3;         % inner radius of ice shell (m)
+        Ri = Ro-2.4e3;         % inner radius of ice shell (m)
         Rc = Ro-1.3e5;         % core radius (m)
         g = 1.3;        % used to calculate failure, m/s/s
-        
+        relaxation_parameter=1e-4; % used in nonlinear loop.
+
         label = 'Europa';
     elseif isetup == 2  % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
-        Ri = Ro-1.0e3;          % inner radius of ice shell (m)
+        Ri = Ro-2.4e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
+        relaxation_parameter=1e-5; % used in nonlinear loop.
+
         label = 'Enceladus';
     else
         error('not implemented');
     end
-    
+    if viscosity_model == 0
+        label = [label '_nimmovisc'];
+    elseif viscosity_model == 1
+        label = [label '_goldsbykohlstedt'];
+    else
+        error('not implemented');
+    end
     
     for inr=1:length(nrs)
         ifail = 1; % index into list of times at which failure occurred.
         nr = nrs(inr); % number of grid points
-        relaxation_parameter=1e-3; % used in nonlinear loop.
         maxiter=1000;
         % Define physical constants and parameters
         % Physical constants
@@ -250,7 +258,8 @@ for isetup = 1:1
             pexpost_store = zeros(maxiter,1);
             for iter=1:maxiter
                 if iter>10
-                    Pex = interp1(pexpost_store(1:iter-1)-pex_store(1:iter-1),pex_store(1:iter-1),0,'linear','extrap');
+                    [tmp,ind] = unique(pex_store(1:iter-1));
+                    Pex = interp1(pexpost_store(ind)-pex_store(ind),pex_store(ind),0,'linear','extrap');
                 elseif iter>1
                     Pex = Pex + relaxation_parameter*(Pex_post-Pex);
                 else
@@ -301,7 +310,7 @@ for isetup = 1:1
 %                     disp([num2str(ivisc) ' change in norm of siiD:' num2str(norm_change)]);
                     if isnan(norm_change)
                         keyboard
-                    elseif norm_change < 1e-2
+                    elseif norm_change < 1e-4
                         visc_converged = true;
                     end
                         
@@ -340,7 +349,7 @@ for isetup = 1:1
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
                 
                 % check for convergence
-                if abs( Pex_post-Pex )/abs(Pex) < 1e-3
+                if abs( Pex_post-Pex )/abs(Pex) < 1e-3 || abs(Pex_post-Pex) < 1e2
                     fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                     converged = true;
                 elseif iter==maxiter
