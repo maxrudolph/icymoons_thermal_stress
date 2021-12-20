@@ -9,8 +9,8 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 1:2
-    viscosity_model = 1; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+for isetup = 2:2
+    viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
     
@@ -27,7 +27,7 @@ for isetup = 1:2
         Ri = Ro-2.4e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
-        relaxation_parameter=1e-5; % used in nonlinear loop.
+        relaxation_parameter=1e-1; % used in nonlinear loop.
 
         label = 'Enceladus';
     else
@@ -58,7 +58,7 @@ for isetup = 1:2
         E = 5e9;        % shear modulus of ice (Pa)
         nu = 0.3;       % Poisson ratio of ice (-)
         beta_w = 4e-10; % Compressibility of water (1/Pa)
-        alpha_l = 1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+        alpha_l = 1e-4*0; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
         rho_i=900;      % density of ice (kg/m^3)
         rho_w=1000;     % density of water (kg/m^3)
         Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
@@ -265,7 +265,8 @@ for isetup = 1:2
                 else
                     Pex = Pex_last;
                 end
-                
+                Pex_crit = (rho_w-rho_i)*(Ro-Ri-z)*g;
+
                 % calculate viscosity at each node
                 visc_converged = false;
                 visc_iter = 100;
@@ -295,18 +296,20 @@ for isetup = 1:2
                         %                 end
                         %                 mu_node = exp(smooth(log( mu_node )));
                         if iter==1
-                            Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
+                            Pex=Pex_crit; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
                         end
                     end
                     if all(failure_mask)
                         % Crack reached ocean. Reset overpressure to zero.
-                        Pex=0;
-                        converged=true;
+                        if Pex > Pex_crit
+                            Pex=Pex_crit;
+                            converged=true;
+                        end
                     end
                     % No failure - calculate stresses as usual
                     [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
                     siiD_post = sqrt( 0.5*(sigma_rD.^2 + 2*sigma_tD.^2) );
-                    norm_change = norm(siiD_post-siiD)/norm(siiD);
+                    norm_change = min(norm(siiD_post-siiD)/norm(siiD),norm(siiD_post-siiD));
 %                     disp([num2str(ivisc) ' change in norm of siiD:' num2str(norm_change)]);
                     if isnan(norm_change)
                         keyboard
@@ -338,7 +341,7 @@ for isetup = 1:2
                 et = et_last + de_t;
                 ur = grid_r'.*et; %radial displacement
                 
-                ei = 2*de_t + de_r; % first invariant
+                ei = 2*de_t + de_r; % first invariant of strain
                 de_tD = de_t - 1/3*ei;
                 de_rD = de_r - 1/3*ei;
                 eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric strain
@@ -346,6 +349,8 @@ for isetup = 1:2
                 % re-calculate excess pressure using new uplift
                 %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
                 Pex_post = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
+                % Calculate the critical excess presssure necessary to
+                % erupt water onto the surface.
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
                 
                 % check for convergence
@@ -355,9 +360,9 @@ for isetup = 1:2
                 elseif iter==maxiter
                     error('Nonlinear loop failed to converge');
                 end
-                if all(failure_mask)
+                if all(failure_mask) && Pex >= Pex_crit
                     % Calculate the volume erupted (dP)*beta*V0 + V-V0
-                    pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ro^3-Ri^3));
+                    pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ri^3-Rc^3));
                     volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr
                     erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
                     erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
