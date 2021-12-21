@@ -10,7 +10,7 @@ nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 for isetup = 2:2
-    viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+    viscosity_model = 1; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
     
@@ -27,7 +27,7 @@ for isetup = 2:2
         Ri = Ro-2.4e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
-        relaxation_parameter=1e-1; % used in nonlinear loop.
+        relaxation_parameter=1e-3; % used in nonlinear loop.
 
         label = 'Enceladus';
     else
@@ -58,7 +58,7 @@ for isetup = 2:2
         E = 5e9;        % shear modulus of ice (Pa)
         nu = 0.3;       % Poisson ratio of ice (-)
         beta_w = 4e-10; % Compressibility of water (1/Pa)
-        alpha_l = 1e-4*0; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+        alpha_l = 1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
         rho_i=900;      % density of ice (kg/m^3)
         rho_w=1000;     % density of water (kg/m^3)
         Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
@@ -117,6 +117,7 @@ for isetup = 2:2
         results.ur = zeros(nsave_depths,nsave);
         results.failure_time = zeros(1,nsave);
         results.failure_P = zeros(1,nsave);
+        results.failure_Pex_crit = zeros(1,nsave);
         results.failure_dP = zeros(1,nsave);
         results.failure_thickness = zeros(1,nsave);
         results.failure_top = zeros(1,nsave);
@@ -283,7 +284,31 @@ for isetup = 2:2
                     mu_node = zeros(nr,1);
                     mu_node(:) = mu(T,siiD);
                     % reduce Maxwell time in region experiencing failure
-                    if( any(failure_mask) )
+                    if all(failure_mask)
+                        if Pex_last >= Pex_crit                       
+                            % Calculate the volume erupted (dP)*beta*V0 + V-V0
+                            pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*(Ri^3-Rc^3));                            
+                            urelax = Ri/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
+                            volume_contribution = Ri^2*urelax*4*pi; % (4*pi*R^2)*dr
+                        else
+                           pressure_contribution = 0;
+                           volume_contribution = 0;
+                        end
+                        % reset stresses and uplift
+                        sigma_r_last = 0*sigma_r_last;
+                        sigma_t_last = 0*sigma_t_last;
+                        er_last = 0*er_last;
+                        et_last = 0*et_last;
+                        ur_last = 0*ur_last;
+                        Pex=0; % force zero pressure.
+                        converged = true;
+                        Ri = Ri - z;
+                        z = 0;
+                        z_last=0;
+                        % move the inner radius effectively to the current position
+                        % of the base of the ice shell. Then set the amount of
+                        % freezing to zero.
+                    elseif( any(failure_mask) )
                         minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
                         mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
                         above_crack = find( failure_mask,1,'last');
@@ -296,17 +321,11 @@ for isetup = 2:2
                         %                 end
                         %                 mu_node = exp(smooth(log( mu_node )));
                         if iter==1
-                            Pex=Pex_crit; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
+                            Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
                         end
                     end
-                    if all(failure_mask)
-                        % Crack reached ocean. Reset overpressure to zero.
-                        if Pex > Pex_crit
-                            Pex=Pex_crit;
-                            converged=true;
-                        end
-                    end
-                    % No failure - calculate stresses as usual
+
+                    % Calculate Stresses
                     [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
                     siiD_post = sqrt( 0.5*(sigma_rD.^2 + 2*sigma_tD.^2) );
                     norm_change = min(norm(siiD_post-siiD)/norm(siiD),norm(siiD_post-siiD));
@@ -319,6 +338,14 @@ for isetup = 2:2
                         
                     ivisc = ivisc+1;
                 end
+                if all(failure_mask)
+                   erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
+                   erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
+                   erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
+                end
+                
+                
+                
                 % 5. Calculate the strains
                 dT = T-T_last;
                 dr1 = grid_r(2)-grid_r(1);
@@ -360,19 +387,7 @@ for isetup = 2:2
                 elseif iter==maxiter
                     error('Nonlinear loop failed to converge');
                 end
-                if all(failure_mask) && Pex >= Pex_crit
-                    % Calculate the volume erupted (dP)*beta*V0 + V-V0
-                    pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ri^3-Rc^3));
-                    volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr
-                    erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
-                    erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
-                    erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
-                    Ri = Ri - z;
-                    z = 0;
-                    % move the inner radius effectively to the current position
-                    % of the base of the ice shell. Then set the amount of
-                    % freezing to zero.
-                end
+                
                 pex_store(iter) = Pex;
                 pexpost_store(iter) = Pex_post;
                 if converged
@@ -449,6 +464,8 @@ for isetup = 2:2
                 results.failure_thickness(ifail) = max_depth-min_depth;
                 results.failure_time(ifail) = time/seconds_in_year/1e6;
                 results.failure_P(ifail) = Pex;
+                results.failure_Pex_crit(ifail) = Pex_crit;
+
                 results.failure_top(ifail) = min_depth;
                 results.failure_bottom(ifail) = max_depth;
                 results.failure_sigma_t{ifail} = sigma_t;
