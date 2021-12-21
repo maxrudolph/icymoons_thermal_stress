@@ -9,14 +9,14 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 2:2
-    viscosity_model = 1; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+for isetup = 1:2
+    viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
     
     if isetup == 1      % Europa
         Ro = 1.561e6;          % outer radius of ice shell (m)
-        Ri = Ro-2.4e3;         % inner radius of ice shell (m)
+        Ri = Ro-1e3;         % inner radius of ice shell (m)
         Rc = Ro-1.3e5;         % core radius (m)
         g = 1.3;        % used to calculate failure, m/s/s
         relaxation_parameter=1e-4; % used in nonlinear loop.
@@ -24,7 +24,7 @@ for isetup = 2:2
         label = 'Europa';
     elseif isetup == 2  % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
-        Ri = Ro-2.4e3;          % inner radius of ice shell (m)
+        Ri = Ro-1.0e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
         relaxation_parameter=1e-3; % used in nonlinear loop.
@@ -58,7 +58,7 @@ for isetup = 2:2
         E = 5e9;        % shear modulus of ice (Pa)
         nu = 0.3;       % Poisson ratio of ice (-)
         beta_w = 4e-10; % Compressibility of water (1/Pa)
-        alpha_l = 1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+        alpha_l = 3e-5; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
         rho_i=900;      % density of ice (kg/m^3)
         rho_w=1000;     % density of water (kg/m^3)
         Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
@@ -237,7 +237,7 @@ for isetup = 2:2
             dzdt = delta_rb/dt;
             
             % calculate new ocean pressure (Manga and Wang 2007, equation 5)
-            Pex_pred = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
+            Pex_pred = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
             
             new_grid_r = linspace(Ri-z,Ro,nr);
             dTdr_last = (T_last(2)-Tb)/(grid_r(2)-grid_r(1));
@@ -266,7 +266,7 @@ for isetup = 2:2
                 else
                     Pex = Pex_last;
                 end
-                Pex_crit = (rho_w-rho_i)*(Ro-Ri-z)*g;
+                Pex_crit = (rho_w-rho_i)*(Ro-(Ri-z))*g;
 
                 % calculate viscosity at each node
                 visc_converged = false;
@@ -287,9 +287,9 @@ for isetup = 2:2
                     if all(failure_mask)
                         if Pex_last >= Pex_crit                       
                             % Calculate the volume erupted (dP)*beta*V0 + V-V0
-                            pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*(Ri^3-Rc^3));                            
-                            urelax = Ri/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
-                            volume_contribution = Ri^2*urelax*4*pi; % (4*pi*R^2)*dr
+                            pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));                            
+                            urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
+                            volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
                         else
                            pressure_contribution = 0;
                            volume_contribution = 0;
@@ -375,7 +375,7 @@ for isetup = 2:2
                 
                 % re-calculate excess pressure using new uplift
                 %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
-                Pex_post = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
+                Pex_post = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
                 % Calculate the critical excess presssure necessary to
                 % erupt water onto the surface.
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);

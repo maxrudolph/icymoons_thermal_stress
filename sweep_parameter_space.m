@@ -4,7 +4,7 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = false
+do_runs = true
 strength_label = '3MPa';
 
 if do_runs
@@ -75,7 +75,7 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
     
-    for moon=0:1
+    for moon=1:1
         clearvars -except seconds_in_year moon strength_label;
         seconds_in_year = 3.1558e7;
         disp('loading data');
@@ -361,8 +361,10 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick=[1 3 14 nthick]
-                for idQ=[ 5 ndQ]
+            for ithick = [1 nthick]
+                for idQ = [1 ndQ]
+%             for ithick=[1 3 14 nthick]
+%                 for idQ=[ 5 ndQ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');

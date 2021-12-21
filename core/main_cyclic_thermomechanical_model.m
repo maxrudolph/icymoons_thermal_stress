@@ -51,7 +51,7 @@ H=0; % internal heating rate.
 E = 5e9;        % shear modulus of ice (Pa)
 nu = 0.3;       % Poisson ratio of ice (-)
 beta_w = 4e-10; % Compressibility of water (1/Pa)
-alpha_l = 1e-4; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+alpha_l = 3e-5; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
 
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
 mub=1e15;       % basal viscosity (Pa-s)
@@ -82,11 +82,13 @@ results.Qtot = zeros(nsave,1);
 results.sigma_t = NaN*zeros(nsave_depths,nsave);
 results.sigma_r = NaN*zeros(nsave_depths,nsave);
 results.Pex = zeros(nsave,1);
+results.Pex_crit = zeros(nsave,1);
 results.dTdr = zeros(nsave_depths,nsave);
 results.T = zeros(nsave_depths,nsave);
 results.ur = zeros(nsave_depths,nsave);
 results.failure_time = zeros(1,nsave);
 results.failure_P = zeros(1,nsave);
+results.failure_Pex_crit = zeros(1,nsave);
 results.failure_dP = zeros(1,nsave);
 results.failure_thickness = zeros(1,nsave);
 results.failure_top = zeros(1,nsave);
@@ -173,8 +175,9 @@ while time < t_end
     dzdt = delta_rb/dt;
     
     % calculate new ocean pressure (Manga and Wang 2007, equation 5)
-    Pex_pred = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
-    
+    Pex_pred = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
+    Pex_crit = (rho_w-rho_i)*(Ro-(Ri-z))*g;
+
     new_grid_r = linspace(Ri-z,Ro,nr);
     dTdr_last = (T_last(2)-Tb)/(grid_r(2)-grid_r(1));
     [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
@@ -208,12 +211,38 @@ while time < t_end
         if iter == maxiter
             %             keyboard
         end
-        
         % calculate viscosity at each node
         mu_node = zeros(nr,1);
         mu_node(:) = mu(T);
         % reduce Maxwell time in region experiencing failure
-        if( any(failure_mask) )
+        if all(failure_mask)
+            if Pex_last >= Pex_crit
+                % Calculate the volume erupted (dP)*beta*V0 + V-V0
+                pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));
+                urelax = Ri/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
+                volume_contribution = Ri^2*urelax*4*pi; % (4*pi*R^2)*dr
+            else
+                pressure_contribution = 0;
+                volume_contribution = 0;
+            end
+            % reset stresses and uplift
+            sigma_r_last = 0*sigma_r_last;
+            sigma_t_last = 0*sigma_t_last;
+            er_last = 0*er_last;
+            et_last = 0*et_last;
+            ur_last = 0*ur_last;
+            Pex=0; % force zero pressure.
+            converged = true;
+            Ri = Ri - z;
+            z = 0;
+            z_last=0;
+            % move the inner radius effectively to the current position
+            % of the base of the ice shell. Then set the amount of
+            % freezing to zero.
+            erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
+            erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
+            erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
+        elseif( any(failure_mask) )
             minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
             mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
             above_crack = find( failure_mask,1,'last');
@@ -234,6 +263,7 @@ while time < t_end
             Pex=0;
             converged=true;
         end
+
         % No failure - calculate stresses as usual
         [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
         
@@ -266,7 +296,7 @@ while time < t_end
         
         % re-calculate excess pressure using new uplift
         %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
-        Pex_post = Pex_last + 3*Ri^2/beta_w/(Ri^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
+        Pex_post = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
         %         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
         
         % calcualte an approximate derivative d_sigma_r/dPex
@@ -282,8 +312,6 @@ while time < t_end
         du_m = grid_r(1) * de_tm(1);
         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
         
-        
-        
         % check for convergence
         if abs( Pex_post-Pex )/abs(Pex) < 1e-3
             fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
@@ -295,9 +323,6 @@ while time < t_end
             error('Nonlinear loop failed to converge');
         end
         if all(failure_mask)
-            % Calculate the volume erupted (dP)*beta*V0 + V-V0
-            pressure_contribution = (Pex_last-Pex)*beta_w*(4/3*pi*(Ri^3-Rc^3));
-            volume_contribution = -4*pi*(Ri-z)^2*(ur(1)-ur_last(1)); % (4*pi*R^2)*dr            
             erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
             erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
             erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
@@ -382,7 +407,8 @@ while time < t_end
         fprintf('Relieving stresses between %e-%e m\n',min_depth,max_depth);
         results.failure_thickness(ifail) = max_depth-min_depth;
         results.failure_time(ifail) = time;
-        results.failure_P(ifail) = Pex;        
+        results.failure_P(ifail) = Pex;    
+        results.failure_Pex_crit(ifail) = Pex_crit;
         results.failure_top(ifail) = min_depth;
         results.failure_bottom(ifail) = max_depth;
         results.failure_initial(ifail) = midpoint_depth;
@@ -399,11 +425,19 @@ while time < t_end
             results.failure_dP(ifail-1) = Pex-results.failure_P(ifail-1);
         end
         if all(failure_mask) && any(failure_mask(no_longer_failing))
-            results.failure_eruption_time(ifail-1) = time;
-            results.failure_erupted_volume(ifail-1) = erupted_volume;
-            results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
-            results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
-            
+            % archive results of this eruption.
+            if erupted_volume > 0
+                results.failure_eruption_time(ifail-1) = time;
+                results.failure_erupted_volume(ifail-1) = erupted_volume;
+                results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
+                results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
+            else
+                results.failure_eruption_time(ifail-1) = time;
+                results.failure_erupted_volume(ifail-1) = -1;
+                results.failure_erupted_volume_volumechange(ifail-1) = -1;
+                results.failure_erupted_volume_pressurechange(ifail-1) = -1;
+            end
+            % reset erupted volume.
             erupted_volume = 0;
             erupted_volume_volumechange = 0;
             erupted_volume_pressurechange = 0;
@@ -443,6 +477,7 @@ while time < t_end
         results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
         results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
         results.Pex(isave) = Pex;
+        results.Pex_crit(isave) = Pex_crit;
         last_store = time; isave = isave+1;
     end
 end
@@ -462,12 +497,14 @@ results.Qtot = results.Qtot(1:isave);
 results.sigma_t = results.sigma_t(:,1:isave);
 results.sigma_r = results.sigma_r(:,1:isave);
 results.Pex = results.Pex(1:isave);
+results.Pex_crit = results.Pex_crit(1:isave);
 results.dTdr = results.dTdr(:,1:isave);
 results.T = results.T(:,1:isave);
 results.ur = results.ur(:,1:isave);
 % failure information:
 results.failure_time = results.failure_time(fail_mask);
 results.failure_P = results.failure_P(fail_mask);
+results.failure_Pex_crit = results.failure_Pex_crit(fail_mask);
 results.failure_dP = results.failure_dP(fail_mask);
 results.failure_thickness = results.failure_thickness(fail_mask);
 results.failure_top = results.failure_top(fail_mask);
