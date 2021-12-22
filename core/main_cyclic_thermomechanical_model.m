@@ -146,7 +146,7 @@ while time < t_end
     % calculate heat flux
     dt = dtmax;
     Tg = Tb-(T_last(2)-Tb);
-    dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
+    dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1)); % calculate dT/dr at ocean-ice interface using centered difference
     qb = -k(parameters.Tb)*dTdr_b_last;
     qbelow = Qtot(time+dt) / ( 4*pi*grid_r(1)^2 ); % This is q=Q/area
     qb_net = qb - qbelow; % first term is conducted heat. second term is heat supplied from below.
@@ -155,8 +155,8 @@ while time < t_end
     if abs(qb_net/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
         dt = abs( (grid_r(2)-grid_r(1))/2/(qb_net/Lf/rho_i) );
     end
-    if dt > perturbation_period/100
-        dt = perturbation_period/100;
+    if dt > perturbation_period/200
+        dt = perturbation_period/200;
     end
     if dt < dtmin
         dt = dtmin;
@@ -197,9 +197,7 @@ while time < t_end
     pex_store = zeros(maxiter,1);
     pexpost_store = zeros(maxiter,1);
     for iter=1:maxiter
-        if iter>3 && iter < 100 % disable this code for now - not working for Europa.
-            % Pex = interp1(pexpost_store(1:iter-1)-pex_store(1:iter-1),pex_store(1:iter-1),0,'linear','extrap');
-            
+        if iter>3 && iter < 100           
             [tmp,ind] = sort(pexpost_store(1:iter-1)-pex_store(1:iter-1));
             [tmp1,ind1] = unique(tmp);
             Pex = interp1(tmp1,pex_store(ind(ind1)),0,'linear','extrap');
@@ -209,18 +207,18 @@ while time < t_end
             Pex = Pex_last;
         end
         if iter == maxiter
-            %             keyboard
+            warning('last iteration, no convergence');
         end
         % calculate viscosity at each node
         mu_node = zeros(nr,1);
         mu_node(:) = mu(T);
         % reduce Maxwell time in region experiencing failure
-        if all(failure_mask)
-            if Pex_last >= Pex_crit
+        if all(failure_mask) % crack reaches ocean - relieve all overpressure
+            if Pex_last >= Pex_crit % allow for extrusion if P>Pex_crit               
                 % Calculate the volume erupted (dP)*beta*V0 + V-V0
                 pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));
-                urelax = Ri/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
-                volume_contribution = Ri^2*urelax*4*pi; % (4*pi*R^2)*dr
+                urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
+                volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
             else
                 pressure_contribution = 0;
                 volume_contribution = 0;
@@ -231,7 +229,7 @@ while time < t_end
             er_last = 0*er_last;
             et_last = 0*et_last;
             ur_last = 0*ur_last;
-            Pex=0; % force zero pressure.
+            Pex=0; % force zero pressure under the assumption that eruptions relieve overpressure
             converged = true;
             Ri = Ri - z;
             z = 0;
@@ -239,29 +237,18 @@ while time < t_end
             % move the inner radius effectively to the current position
             % of the base of the ice shell. Then set the amount of
             % freezing to zero.
+            % It's ok to increase the erupted volume counter inside the
+            % nonlinear loop because Pex is fixed and no iteration will
+            % occur.
             erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
             erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
             erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
-        elseif( any(failure_mask) )
+        elseif( any(failure_mask) ) % Crack does not reach ocean - overpressure is not relieved.
             minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
             mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
-            above_crack = find( failure_mask,1,'last');
-            above_crack_mask = false(size(failure_mask));
-            above_crack_mask( above_crack+1 : end ) = true;
-            %                 mu_node(above_crack_mask) = min( mu_node(above_crack_mask),100*E*dt ); % limit maximum viscosity to 100*maxwell time
-            %                 for i=1:3
-            %                 tmp = exp(smooth(log( mu_node )));
-            %                 mu_node(~failure_mask) = tmp(~failure_mask);
-            %                 end
-            %                 mu_node = exp(smooth(log( mu_node )));
             if iter==1
-                Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
+                Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices can cause convergence problems.
             end
-        end
-        if all(failure_mask)
-            % Crack reached ocean. Reset overpressure to zero.
-            Pex=0;
-            converged=true;
         end
 
         % No failure - calculate stresses as usual
@@ -300,17 +287,17 @@ while time < t_end
         %         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
         
         % calcualte an approximate derivative d_sigma_r/dPex
-        perturb = max(1e-4,abs(1e-6*Pex));
-        [sigma_rp,sigma_tp,~,sigma_tDp] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex+perturb),E,nu,dt);
-        [sigma_rm,sigma_tm,~,sigma_tDm] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex-perturb),E,nu,dt);
-        dsigma_tp = sigma_tp - sigma_t_last; dsigma_rp = sigma_rp-sigma_r_last;
-        dsigma_tm = sigma_tm - sigma_t_last; dsigma_rm = sigma_rm-sigma_r_last;
-        
-        de_tp = 1/E*(dsigma_tp-nu*(dsigma_tp+dsigma_rp))+alpha_l*dT + dt/2*(sigma_tDp./mu_node); % change in tangential strain
-        de_tm = 1/E*(dsigma_tm-nu*(dsigma_tm+dsigma_rm))+alpha_l*dT + dt/2*(sigma_tDm./mu_node); % change in tangential strain
-        du_p = grid_r(1) * de_tp(1);
-        du_m = grid_r(1) * de_tm(1);
-        du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
+%         perturb = max(1e-4,abs(1e-6*Pex));
+%         [sigma_rp,sigma_tp,~,sigma_tDp] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex+perturb),E,nu,dt);
+%         [sigma_rm,sigma_tm,~,sigma_tDm] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex-perturb),E,nu,dt);
+%         dsigma_tp = sigma_tp - sigma_t_last; dsigma_rp = sigma_rp-sigma_r_last;
+%         dsigma_tm = sigma_tm - sigma_t_last; dsigma_rm = sigma_rm-sigma_r_last;
+%         
+%         de_tp = 1/E*(dsigma_tp-nu*(dsigma_tp+dsigma_rp))+alpha_l*dT + dt/2*(sigma_tDp./mu_node); % change in tangential strain
+%         de_tm = 1/E*(dsigma_tm-nu*(dsigma_tm+dsigma_rm))+alpha_l*dT + dt/2*(sigma_tDm./mu_node); % change in tangential strain
+%         du_p = grid_r(1) * de_tp(1);
+%         du_m = grid_r(1) * de_tm(1);
+%         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
         
         % check for convergence
         if abs( Pex_post-Pex )/abs(Pex) < 1e-3
@@ -322,23 +309,13 @@ while time < t_end
             end
             error('Nonlinear loop failed to converge');
         end
-        if all(failure_mask)
-            erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
-            erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
-            erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
-            Ri = Ri - z;
-            z = 0;
-            % move the inner radius effectively to the current position
-            % of the base of the ice shell. Then set the amount of
-            % freezing to zero.
-        end
+
         pex_store(iter) = Pex;
         pexpost_store(iter) = Pex_post;
         if converged
             break;
         end
-    end%end nonlinear loop
-    
+    end%end nonlinear loop for pressure
     
     if max(abs(diff(ur))) > 100
         % a discontinuity has developed

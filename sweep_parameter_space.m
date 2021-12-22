@@ -75,7 +75,7 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
     
-    for moon=1:1
+    for moon=0:1
         clearvars -except seconds_in_year moon strength_label;
         seconds_in_year = 3.1558e7;
         disp('loading data');
@@ -88,15 +88,15 @@ else% postprocess:
         % data selection
         % to make plotting simpler, select data corresponding to
         % interesting part of parameter space for each tensile strength
-        if strcmp(strength_label,'1MPa')
-            mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
-        else
-            mask = thicknesses <= 2e4   & thicknesses >= 3e3;
-        end
-        all_results = all_results(:,mask);
-        all_parameters = all_parameters(:,mask);
-        thicknesses = thicknesses(mask);
-        nthick = length(thicknesses);
+%         if strcmp(strength_label,'1MPa')
+%             mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
+%         else
+%             mask = thicknesses <= 2e4   & thicknesses >= 3e3;
+%         end
+%         all_results = all_results(:,mask);
+%         all_parameters = all_parameters(:,mask);
+%         thicknesses = thicknesses(mask);
+%         nthick = length(thicknesses);
         
         %% Analyze models
         disp('analyzing models');
@@ -136,9 +136,9 @@ else% postprocess:
                     all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
                     all_failure_initial(idQ,ithick) = max( results.failure_initial(time_mask) );
                 else
-                    all_erupted_volume(idQ,ithick) = NaN;
-                    all_failure_events(idQ,ithick) = NaN;
-                    all_failure_initial(idQ,ithick) = NaN;
+                    all_erupted_volume(idQ,ithick) = 0;
+                    all_failure_events(idQ,ithick) = 0;
+                    all_failure_initial(idQ,ithick) = 0;
                 end
                 
                 
