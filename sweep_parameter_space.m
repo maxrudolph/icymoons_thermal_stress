@@ -4,8 +4,8 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true
-strength_label = '1MPa';
+do_runs = false
+strength_label = '3MPa';
 
 if do_runs
     for moon=0:1
@@ -19,7 +19,7 @@ if do_runs
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-4;  % europa value
             parameters.nr = 512;
-            parameters.tensile_strength = 1e6;
+            parameters.tensile_strength = 3e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -37,7 +37,7 @@ if do_runs
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-2;
-            parameters.tensile_strength = 1e6;
+            parameters.tensile_strength = 3e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -45,7 +45,7 @@ if do_runs
             parameters.label = 'Enceladus';
         end
         
-        ndQ = 15;
+        ndQ = 15;o
         dQ = linspace(0.1,0.8,ndQ) ;
         nthick = 33;
         thicknesses = logspace(log10(2e3),log10(20e3),nthick);
@@ -106,6 +106,7 @@ else% postprocess:
         all_actual_thickness = zeros(size(all_results));
         all_failure_initial = zeros(size(all_results));
         all_first_eruption_time = zeros(ndQ,nthick);
+        all_reach_ocean = zeros(ndQ,nthick);
 
         % Convert thickness into Q0
         Qtots = zeros(size(thicknesses));
@@ -134,11 +135,11 @@ else% postprocess:
                 if ~isempty(time_mask)
                     all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
                     all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
-                    all_failure_initial(idQ,ithick) = max( results.failure_initial(time_mask) );
+                    all_failure_initial(idQ,ithick) = median( results.failure_initial(time_mask) );                    
                 else
-                    all_erupted_volume(idQ,ithick) = 0;
-                    all_failure_events(idQ,ithick) = 0;
-                    all_failure_initial(idQ,ithick) = 0;
+                    all_erupted_volume(idQ,ithick) = NaN;
+                    all_failure_events(idQ,ithick) = NaN;
+                    all_failure_initial(idQ,ithick) = NaN;
                 end
                 
                 
@@ -150,8 +151,10 @@ else% postprocess:
                 if any(results.failure_thickness)
                     failure_thickness = interp1(results.time,parameters.Ro-(results.Ri-results.z),results.failure_time(time_mask));
                     all_failure_fraction(idQ,ithick) = max(results.failure_thickness ./ failure_thickness);
+                    all_reach_ocean(idQ,ithick) = max(results.failure_bottom ./failure_thickness);
                 else
                     all_failure_fraction(idQ,ithick) = NaN;
+                    all_reach_ocean(idQ,ithick) = NaN;
                 end
                 % if there are eruptions, calculate timing relative to
                 % thickening
@@ -178,60 +181,65 @@ else% postprocess:
         if moon==0
             figure(901);
             clf;
-            t1=tiledlayout(4,2,'Padding','none','TileSpacing','compact','Units','centimeters');
-            t1.OuterPosition(3:4) = [18 15];
+            t1=tiledlayout(3,2,'Padding','none','TileSpacing','compact','Units','centimeters');
+            t1.OuterPosition(3:4) = [18 12];
         else
             figure(901);
         end
         
         
-        nexttile(1+moon);
-        dt = max(results.time) - 2*parameters.perturbation_period;
-        contourf(thicknesses/1e3,dQ,all_erupted_volume/(4*pi*parameters.Ro^2)/(dt/seconds_in_year/1e6),16,'Color','none');
-        hcb=colorbar();
-        hcb.Label.String = 'Erupted Volume (m/Myr)';
-        colormap(crameri('davos'));
-        if ~moon
-            ylabel('\Delta q/q_0');
-        end
-        %         xlabel('Equilibrium Thickness (km)');
-        if( max(all_erupted_volume(:))==0 )
-            caxis([0 1])
-        end
-        title(parameters.label);
-        text(0.05,0.85,char(65+4*moon),'FontSize',14,'Units','normalized');
+%         nexttile(1+moon);
+        %         dt = max(results.time) - 2*parameters.perturbation_period;
+        %         contourf(thicknesses/1e3,dQ,all_erupted_volume/(4*pi*parameters.Ro^2)/(dt/seconds_in_year/1e6),16,'Color','none');
+        %         hcb=colorbar();
+        %         hcb.Label.String = 'Erupted Volume (m/Myr)';
+        %         colormap(crameri('davos'));
+        %         if ~moon
+        %             ylabel('\Delta q/q_0');
+        %         end
+        %         %         xlabel('Equilibrium Thickness (km)');
+        %         if( max(all_erupted_volume(:))==0 )
+        %             caxis([0 1])
+        %         end
+        %         title(parameters.label);
+        %         text(0.05,0.85,char(65+4*moon),'FontSize',14,'Units','normalized');
         
         % Panel 2
-        nexttile(3+moon);
-        contourf(thicknesses/1e3,dQ,all_failure_fraction,16,'Color','none');
+        nexttile(1+moon);
+        contourf(thicknesses/1e3,dQ,all_failure_fraction,20,'Color','none');
+        hold on
+        contour(thicknesses/1e3,dQ,all_failure_fraction,0.999*[1 1],'k');
+        contour(thicknesses/1e3,dQ,all_reach_ocean,[1 1]*0.999,'r--');
         caxis([0 1]);
         hcb = colorbar();
         hcb.Label.String = 'Fractional penetration';
         if ~moon
             ylabel('\Delta q/q_0');
         end
-        text(0.05,0.85,char(65+4*moon+1),'FontSize',14,'Units','normalized');
+        text(0.05,0.85,char(65+3*moon+0),'FontSize',14,'Units','normalized');
+        set(gca,'Color',[1 1 1]*0.85)
+        
         %         xlabel('Equilibrium Thickness (km)');
         
         % Panel 3
-        nexttile(5+moon);
-        contourf(thicknesses/1e3,dQ,all_failure_initial/1e3,16,'Color','none');
+        nexttile(3+moon);
+        contourf(thicknesses/1e3,dQ,all_failure_initial/1e3,20,'Color','none');
         hcb=colorbar();
         hcb.Label.String = 'Failure Depth (km)';
         if ~moon
             ylabel('\Delta q/q_0');
         end
-        text(0.05,0.85,char(65+4*moon+2),'FontSize',14,'Units','normalized');
-        
+        text(0.05,0.85,char(65+3*moon+1),'FontSize',14,'Units','normalized');
+        set(gca,'Color',[1 1 1]*0.85)
         % Panel 4
-        nexttile(7+moon);
+        nexttile(5+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
         failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
-        contourf(thicknesses/1e3,dQ,failures_per_cycle,16,'Color','none');
+        contourf(thicknesses/1e3,dQ,failures_per_cycle,20,'Color','none');
         hcb=colorbar();
-        text(0.05,0.85,char(65+4*moon+3),'FontSize',14,'Units','normalized');
-             
-        hcb.Label.String = 'Failure events per cycle';
+        text(0.05,0.85,char(65+3*moon+2),'FontSize',14,'Units','normalized');
+             set(gca,'Color',[1 1 1]*0.85)
+        hcb.Label.String = 'Cracks per cycle';
         if ~moon
             ylabel('\Delta q/q_0');
         end
@@ -390,9 +398,10 @@ else% postprocess:
                     figure();
                     t=tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
                     nexttile
+                   
                     sigplot = results.sigma_t(:,mask);
                     for i=1:size(results.sigma_t,2)
-                        sigplot(:,i) = sigplot(:,i) - rho_i*parameters.g*results.save_depths';
+                        sigplot(:,i) = sigplot(:,i) - 0*rho_i*parameters.g*results.save_depths'; % optionally subtract hydrostatid pressure (compression negative)
                     end
                     contourf(results.time(mask)/seconds_in_year/1e6,results.save_depths/1000,sigplot,16,'Color','none'); %shading flat;
                     hold on
@@ -427,7 +436,8 @@ else% postprocess:
                     thickness = parameters.Ro - (results.Ri-results.z);
                     b = thickness*(1-rho_i/1000); % depth of neutral buoyancy
                                       
-                    plot(results.time(mask)/seconds_in_year/1e6,1000*parameters.g*b,'b');
+%                     plot(results.time(mask)/seconds_in_year/1e6,1000*parameters.g*b,'k');
+                    plot(results.time(mask)/seconds_in_year/1e6,results.Pex_crit(mask),'k','LineWidth',1);
                     nexttile
                     hold on;
                     % compute whether the pressure at the time of failure
@@ -435,23 +445,20 @@ else% postprocess:
                     thickness = parameters.Ro - (results.Ri-results.z);
                     thickness_at_failure = interp1(results.time,thickness,results.failure_time(1:ifail));
                     overpressure = results.failure_P;% - 1000*parameters.g*thickness_at_failure;
-                    
-                    
+                                        
                     for i=1:length(results.failure_eruption_time)
                         % find closest overpressure value
                         [~,ind] = min( abs(results.failure_time - results.failure_eruption_time(i)) );
-                        overpressure(ind)
-                        (rho_i*parameters.g*thickness_at_failure(ind) + overpressure(ind))/(1000*parameters.g)/thickness_at_failure(ind)
+                        
                         if (rho_i*parameters.g*thickness_at_failure(ind) + overpressure(ind))/(1000*parameters.g) >= thickness_at_failure(ind)
-                            plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');
-                            
+                            plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');                            
                         else
                             plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b--');
                         end
                         %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_volumechange(i)/(4*pi*Ro^2),'go');
                         %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_pressurechange(i)/(4*pi*Ro^2),'rx');
                     end
-                    ylabel('Erupted volume (m)');
+                    ylabel('Cracks Reach Ocean');
                     xlabel('Time (Myr)');
                     ax3=gca();
                     ax3.XLim = ax1.XLim;
