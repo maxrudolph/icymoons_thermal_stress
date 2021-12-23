@@ -5,7 +5,7 @@ close all;
 addpath core;
 seconds_in_year = 3.1558e7;
 do_runs = true
-strength_label = '3MPa';
+strength_label = '1MPa';
 
 if do_runs
     for moon=0:1
@@ -19,7 +19,7 @@ if do_runs
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-4;  % europa value
             parameters.nr = 512;
-            parameters.tensile_strength = 3e6;
+            parameters.tensile_strength = 1e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -37,7 +37,7 @@ if do_runs
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-2;
-            parameters.tensile_strength = 3e6;
+            parameters.tensile_strength = 1e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -390,7 +390,11 @@ else% postprocess:
                     figure();
                     t=tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
                     nexttile
-                    contourf(results.time(mask)/seconds_in_year/1e6,results.save_depths/1000,results.sigma_t(:,mask),16,'Color','none'); %shading flat;
+                    sigplot = results.sigma_t(:,mask);
+                    for i=1:size(results.sigma_t,2)
+                        sigplot(:,i) = sigplot(:,i) - rho_i*parameters.g*results.save_depths';
+                    end
+                    contourf(results.time(mask)/seconds_in_year/1e6,results.save_depths/1000,sigplot,16,'Color','none'); %shading flat;
                     hold on
                     caxis([-1 1]*max(abs(caxis())));
                     colormap(crameri('vik'));
