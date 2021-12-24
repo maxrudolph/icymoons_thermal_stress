@@ -109,11 +109,11 @@ sigma_r_last = zeros(nr,1); % initial stresses
 sigma_t_last = zeros(nr,1); % initial stresses
 
 % Initialize T with steady numerical solution.
-for iter=1:10    
+for iter=1:10
     % Iterate 10 times to ensure consistency between assumed and actual k(T)
     % In practice, this doesn't matter if we start with the correct
     % analytic solution already.
-    T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);    
+    T_last = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,Inf,0.0);
 end
 er_last = zeros(nr,1); % strains
 et_last = zeros(nr,1);
@@ -177,7 +177,7 @@ while time < t_end
     % calculate new ocean pressure (Manga and Wang 2007, equation 5)
     Pex_pred = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
     Pex_crit = (rho_w-rho_i)*(Ro-(Ri-z))*g;
-
+    
     new_grid_r = linspace(Ri-z,Ro,nr);
     dTdr_last = (T_last(2)-Tb)/(grid_r(2)-grid_r(1));
     [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
@@ -197,7 +197,7 @@ while time < t_end
     pex_store = zeros(maxiter,1);
     pexpost_store = zeros(maxiter,1);
     for iter=1:maxiter
-        if iter>3 && iter < 100           
+        if iter>3 && iter < 100
             [tmp,ind] = sort(pexpost_store(1:iter-1)-pex_store(1:iter-1));
             [tmp1,ind1] = unique(tmp);
             Pex = interp1(tmp1,pex_store(ind(ind1)),0,'linear','extrap');
@@ -214,7 +214,7 @@ while time < t_end
         mu_node(:) = mu(T);
         % reduce Maxwell time in region experiencing failure
         if all(failure_mask) % crack reaches ocean - relieve all overpressure
-            if Pex_last >= Pex_crit % allow for extrusion if P>Pex_crit               
+            if Pex_last >= Pex_crit % allow for extrusion if P>Pex_crit
                 % Calculate the volume erupted (dP)*beta*V0 + V-V0
                 pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));
                 urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
@@ -224,11 +224,13 @@ while time < t_end
                 volume_contribution = 0;
             end
             % reset stresses and uplift
-            sigma_r_last = 0*sigma_r_last;
-            sigma_t_last = 0*sigma_t_last;
-            er_last = 0*er_last;
-            et_last = 0*et_last;
-            ur_last = 0*ur_last;
+            %             sigma_r_last = 0*sigma_r_last;
+            %             sigma_t_last = 0*sigma_t_last;
+            %             er_last = 0*er_last;
+            %             et_last = 0*et_last;
+            %             ur_last = 0*ur_last;
+            minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
+            mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timest
             Pex=0; % force zero pressure under the assumption that eruptions relieve overpressure
             converged = true;
             Ri = Ri - z;
@@ -250,7 +252,7 @@ while time < t_end
                 Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices can cause convergence problems.
             end
         end
-
+        
         % No failure - calculate stresses as usual
         [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
         
@@ -286,18 +288,18 @@ while time < t_end
         Pex_post = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
         %         fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
         
-        % calcualte an approximate derivative d_sigma_r/dPex
-%         perturb = max(1e-4,abs(1e-6*Pex));
-%         [sigma_rp,sigma_tp,~,sigma_tDp] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex+perturb),E,nu,dt);
-%         [sigma_rm,sigma_tm,~,sigma_tDm] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex-perturb),E,nu,dt);
-%         dsigma_tp = sigma_tp - sigma_t_last; dsigma_rp = sigma_rp-sigma_r_last;
-%         dsigma_tm = sigma_tm - sigma_t_last; dsigma_rm = sigma_rm-sigma_r_last;
-%         
-%         de_tp = 1/E*(dsigma_tp-nu*(dsigma_tp+dsigma_rp))+alpha_l*dT + dt/2*(sigma_tDp./mu_node); % change in tangential strain
-%         de_tm = 1/E*(dsigma_tm-nu*(dsigma_tm+dsigma_rm))+alpha_l*dT + dt/2*(sigma_tDm./mu_node); % change in tangential strain
-%         du_p = grid_r(1) * de_tp(1);
-%         du_m = grid_r(1) * de_tm(1);
-%         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
+        % calculate an approximate derivative d_sigma_r/dPex
+        %         perturb = max(1e-4,abs(1e-6*Pex));
+        %         [sigma_rp,sigma_tp,~,sigma_tDp] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex+perturb),E,nu,dt);
+        %         [sigma_rm,sigma_tm,~,sigma_tDm] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-(Pex-perturb),E,nu,dt);
+        %         dsigma_tp = sigma_tp - sigma_t_last; dsigma_rp = sigma_rp-sigma_r_last;
+        %         dsigma_tm = sigma_tm - sigma_t_last; dsigma_rm = sigma_rm-sigma_r_last;
+        %
+        %         de_tp = 1/E*(dsigma_tp-nu*(dsigma_tp+dsigma_rp))+alpha_l*dT + dt/2*(sigma_tDp./mu_node); % change in tangential strain
+        %         de_tm = 1/E*(dsigma_tm-nu*(dsigma_tm+dsigma_rm))+alpha_l*dT + dt/2*(sigma_tDm./mu_node); % change in tangential strain
+        %         du_p = grid_r(1) * de_tp(1);
+        %         du_m = grid_r(1) * de_tm(1);
+        %         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
         
         % check for convergence
         if abs( Pex_post-Pex )/abs(Pex) < 1e-3
@@ -309,7 +311,7 @@ while time < t_end
             end
             error('Nonlinear loop failed to converge');
         end
-
+        
         pex_store(iter) = Pex;
         pexpost_store(iter) = Pex_post;
         if converged
@@ -384,7 +386,7 @@ while time < t_end
         fprintf('Relieving stresses between %e-%e m\n',min_depth,max_depth);
         results.failure_thickness(ifail) = max_depth-min_depth;
         results.failure_time(ifail) = time;
-        results.failure_P(ifail) = Pex;    
+        results.failure_P(ifail) = Pex;
         results.failure_Pex_crit(ifail) = Pex_crit;
         results.failure_top(ifail) = min_depth;
         results.failure_bottom(ifail) = max_depth;

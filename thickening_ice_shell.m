@@ -9,7 +9,7 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 1:2
+for isetup = 2:2
     viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
