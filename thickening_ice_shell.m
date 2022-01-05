@@ -9,7 +9,7 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 2:2
+for isetup = 1:1
     viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
@@ -592,7 +592,7 @@ for isetup = 2:2
         ax1.FontSize=8;
         hcb = colorbar();
         hcb.Label.String = 'Tensile Stress (Pa)';
-        text(0.025,0.85,char('A'+(isetup-1)*3),'FontSize',8,'Units','normalized');
+        text(0.025,0.85,char('A'+(isetup-1)*2),'FontSize',8,'Units','normalized');
         xlabel('Time (years)');
         title(label);
         ylabel('Depth (km)');
@@ -611,8 +611,9 @@ for isetup = 2:2
         ax2.FontSize=8;
         hold on
         plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1),'r.');
-        plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'g.');
-        text(0.025,0.85,char('B'+(isetup-1)*3),'FontSize',8,'Units','normalized');
+        end_color = [0 0.9 0];
+        plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
+        text(0.025,0.85,char('B'+(isetup-1)*2),'FontSize',8,'Units','normalized');
 
         xlabel('Time (years)');
         nexttile

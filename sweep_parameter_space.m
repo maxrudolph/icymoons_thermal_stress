@@ -4,11 +4,11 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = false
-strength_label = '3MPa';
+do_runs = true
+strength_label = '1MPa';
 
 if do_runs
-    for moon=0:1
+    for moon=1:1
         if moon==0
             % Europa
             parameters = struct();
@@ -19,7 +19,7 @@ if do_runs
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-4;  % europa value
             parameters.nr = 512;
-            parameters.tensile_strength = 3e6;
+            parameters.tensile_strength = 1e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -37,7 +37,7 @@ if do_runs
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
             parameters.relaxation_parameter = 1e-2;
-            parameters.tensile_strength = 3e6;
+            parameters.tensile_strength = 1e6;
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
@@ -45,10 +45,14 @@ if do_runs
             parameters.label = 'Enceladus';
         end
         
-        ndQ = 15;o
-        dQ = linspace(0.1,0.8,ndQ) ;
-        nthick = 33;
-        thicknesses = logspace(log10(2e3),log10(20e3),nthick);
+%         ndQ = 15;
+%         dQ = linspace(0.1,0.8,ndQ);
+%         nthick = 33;
+%         thicknesses = logspace(log10(2e3),log10(20e3),nthick);
+        ndQ = 1;
+        nthick = 1;
+        dQ = [0.8];
+        thicknesses = [2e4];
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
@@ -65,7 +69,7 @@ if do_runs
             end
         end
         % parfor here for real runs:
-        parfor irun=1:ndQ*nthick
+        for irun=1:ndQ*nthick
             all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
         end
         save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
@@ -88,15 +92,15 @@ else% postprocess:
         % data selection
         % to make plotting simpler, select data corresponding to
         % interesting part of parameter space for each tensile strength
-%         if strcmp(strength_label,'1MPa')
-%             mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
-%         else
-%             mask = thicknesses <= 2e4   & thicknesses >= 3e3;
-%         end
-%         all_results = all_results(:,mask);
-%         all_parameters = all_parameters(:,mask);
-%         thicknesses = thicknesses(mask);
-%         nthick = length(thicknesses);
+        %         if strcmp(strength_label,'1MPa')
+        %             mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
+        %         else
+        %             mask = thicknesses <= 2e4   & thicknesses >= 3e3;
+        %         end
+        %         all_results = all_results(:,mask);
+        %         all_parameters = all_parameters(:,mask);
+        %         thicknesses = thicknesses(mask);
+        %         nthick = length(thicknesses);
         
         %% Analyze models
         disp('analyzing models');
@@ -107,7 +111,7 @@ else% postprocess:
         all_failure_initial = zeros(size(all_results));
         all_first_eruption_time = zeros(ndQ,nthick);
         all_reach_ocean = zeros(ndQ,nthick);
-
+        
         % Convert thickness into Q0
         Qtots = zeros(size(thicknesses));
         
@@ -135,7 +139,7 @@ else% postprocess:
                 if ~isempty(time_mask)
                     all_erupted_volume(idQ,ithick) = sum( results.failure_erupted_volume(time_mask) );
                     all_failure_events(idQ,ithick) = nnz( results.failure_time(time_mask) );
-                    all_failure_initial(idQ,ithick) = median( results.failure_initial(time_mask) );                    
+                    all_failure_initial(idQ,ithick) = median( results.failure_initial(time_mask) );
                 else
                     all_erupted_volume(idQ,ithick) = NaN;
                     all_failure_events(idQ,ithick) = NaN;
@@ -160,17 +164,17 @@ else% postprocess:
                 % thickening
                 
                 if ~isempty(results.failure_eruption_time)
-                   % for each eruption time, find preceding ice shell thickness minimum.
-                   [~,p1] = findpeaks(-thickness,'MinPeakProminence',100); % find thickness minima (anti-peaks)
-                   thickness_minima = results.time(p1);                   
-                   thickness_minima_mod = mod(thickness_minima,parameters.perturbation_period);
-                   eruption_time_mod = mod(results.failure_eruption_time,parameters.perturbation_period);
-                   first_eruption_time = min(eruption_time_mod) - mean(thickness_minima_mod);
-                   if first_eruption_time <0
-                       first_eruption_time= first_eruption_time+parameters.perturbation_period;
-                   end
-                   all_first_eruption_time(idQ,ithick) = first_eruption_time/seconds_in_year/1e6;
-                  
+                    % for each eruption time, find preceding ice shell thickness minimum.
+                    [~,p1] = findpeaks(-thickness,'MinPeakProminence',100); % find thickness minima (anti-peaks)
+                    thickness_minima = results.time(p1);
+                    thickness_minima_mod = mod(thickness_minima,parameters.perturbation_period);
+                    eruption_time_mod = mod(results.failure_eruption_time,parameters.perturbation_period);
+                    first_eruption_time = min(eruption_time_mod) - mean(thickness_minima_mod);
+                    if first_eruption_time <0
+                        first_eruption_time= first_eruption_time+parameters.perturbation_period;
+                    end
+                    all_first_eruption_time(idQ,ithick) = first_eruption_time/seconds_in_year/1e6;
+                    
                 else
                     all_first_eruption_time(idQ,ithick) = NaN;
                 end
@@ -188,7 +192,7 @@ else% postprocess:
         end
         
         
-%         nexttile(1+moon);
+        %         nexttile(1+moon);
         %         dt = max(results.time) - 2*parameters.perturbation_period;
         %         contourf(thicknesses/1e3,dQ,all_erupted_volume/(4*pi*parameters.Ro^2)/(dt/seconds_in_year/1e6),16,'Color','none');
         %         hcb=colorbar();
@@ -208,8 +212,8 @@ else% postprocess:
         nexttile(1+moon);
         contourf(thicknesses/1e3,dQ,all_failure_fraction,20,'Color','none');
         hold on
-        contour(thicknesses/1e3,dQ,all_failure_fraction,0.999*[1 1],'k');
-        contour(thicknesses/1e3,dQ,all_reach_ocean,[1 1]*0.999,'r--');
+        contour(thicknesses/1e3,dQ,all_failure_fraction,0.985*[1 1],'k');
+        contour(thicknesses/1e3,dQ,all_reach_ocean,[1 1]*0.985,'r--');
         caxis([0 1]);
         hcb = colorbar();
         hcb.Label.String = 'Fractional penetration';
@@ -235,10 +239,10 @@ else% postprocess:
         nexttile(5+moon);
         dt = max(results.time) - 2*parameters.perturbation_period;
         failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
-        contourf(thicknesses/1e3,dQ,failures_per_cycle,20,'Color','none');
+        contourf(thicknesses/1e3,dQ,failures_per_cycle,linspace(0,200,20),'Color','none');
         hcb=colorbar();
         text(0.05,0.85,char(65+3*moon+2),'FontSize',14,'Units','normalized');
-             set(gca,'Color',[1 1 1]*0.85)
+        set(gca,'Color',[1 1 1]*0.85)
         hcb.Label.String = 'Cracks per cycle';
         if ~moon
             ylabel('\Delta q/q_0');
@@ -371,8 +375,8 @@ else% postprocess:
         if run_plots
             for ithick = [1 nthick]
                 for idQ = [1 ndQ]
-%             for ithick=[1 3 14 nthick]
-%                 for idQ=[ 5 ndQ]
+                    %             for ithick=[1 3 14 20 nthick]
+                    %                 for idQ=[ 5 ndQ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
@@ -398,7 +402,7 @@ else% postprocess:
                     figure();
                     t=tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
                     nexttile
-                   
+                    
                     sigplot = results.sigma_t(:,mask);
                     for i=1:size(results.sigma_t,2)
                         sigplot(:,i) = sigplot(:,i) - 0*rho_i*parameters.g*results.save_depths'; % optionally subtract hydrostatid pressure (compression negative)
@@ -435,8 +439,8 @@ else% postprocess:
                     plot(results.failure_time(1:ifail)/seconds_in_year/1e6,(results.failure_P(1:ifail)+results.failure_dP(1:ifail)),'g.');
                     thickness = parameters.Ro - (results.Ri-results.z);
                     b = thickness*(1-rho_i/1000); % depth of neutral buoyancy
-                                      
-%                     plot(results.time(mask)/seconds_in_year/1e6,1000*parameters.g*b,'k');
+                    
+                    %                     plot(results.time(mask)/seconds_in_year/1e6,1000*parameters.g*b,'k');
                     plot(results.time(mask)/seconds_in_year/1e6,results.Pex_crit(mask),'k','LineWidth',1);
                     nexttile
                     hold on;
@@ -445,13 +449,13 @@ else% postprocess:
                     thickness = parameters.Ro - (results.Ri-results.z);
                     thickness_at_failure = interp1(results.time,thickness,results.failure_time(1:ifail));
                     overpressure = results.failure_P;% - 1000*parameters.g*thickness_at_failure;
-                                        
+                    
                     for i=1:length(results.failure_eruption_time)
                         % find closest overpressure value
                         [~,ind] = min( abs(results.failure_time - results.failure_eruption_time(i)) );
                         
                         if (rho_i*parameters.g*thickness_at_failure(ind) + overpressure(ind))/(1000*parameters.g) >= thickness_at_failure(ind)
-                            plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');                            
+                            plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b');
                         else
                             plot(results.failure_eruption_time(i)/seconds_in_year/1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*parameters.Ro^2)*[0 1],'b--');
                         end

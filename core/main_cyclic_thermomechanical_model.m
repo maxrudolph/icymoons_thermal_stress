@@ -122,6 +122,7 @@ z_last = 0;    % total amount of thickening
 Pex_last = 0; %initial overpressure
 
 time=0; % elapsed time
+dt = dtmax;
 
 % save initial state
 isave = 1;
@@ -144,7 +145,8 @@ while time < t_end
     
     % 1. Calculate basal freeze-on and interpolate old solution onto new mesh
     % calculate heat flux
-    dt = dtmax;
+    dtlast = dt;
+    dt = min(dtmax,2*dtlast); % limit amount by which timestep can increase.    
     Tg = Tb-(T_last(2)-Tb);
     dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1)); % calculate dT/dr at ocean-ice interface using centered difference
     qb = -k(parameters.Tb)*dTdr_b_last;
@@ -332,8 +334,8 @@ while time < t_end
     
     
     % 5. Determine whether tensile failure has occurred
-    failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
-    if(any(failure)) % failure is occurring
+    failure = tensile_failure_criterion(Ro-grid_r',sigma_tD,rho_i,g,tensile_strength);
+    if( any(failure) ) % failure is occurring
         disp(['Failure criterion has been reached']);
         idx_shallow = find(failure,1,'last');
         idx_deep = find(failure,1,'first');
