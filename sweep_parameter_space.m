@@ -45,14 +45,14 @@ if do_runs
             parameters.label = 'Enceladus';
         end
         
-%         ndQ = 15;
-%         dQ = linspace(0.1,0.8,ndQ);
-%         nthick = 33;
-%         thicknesses = logspace(log10(2e3),log10(20e3),nthick);
-        ndQ = 1;
-        nthick = 1;
-        dQ = [0.8];
-        thicknesses = [2e4];
+         ndQ = 15;
+         dQ = linspace(0.1,0.8,ndQ);
+         nthick = 33;
+         thicknesses = logspace(log10(2e3),log10(20e3),nthick);
+%         ndQ = 1;
+%         nthick = 1;
+%         dQ = [0.8];
+%         thicknesses = [2e4];
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
@@ -69,7 +69,7 @@ if do_runs
             end
         end
         % parfor here for real runs:
-        for irun=1:ndQ*nthick
+        parfor irun=1:ndQ*nthick
             all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
         end
         save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
