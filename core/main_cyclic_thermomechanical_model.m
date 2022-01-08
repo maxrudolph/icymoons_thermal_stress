@@ -9,11 +9,15 @@ tensile_strength = parameters.tensile_strength;     % tensile strength, Pa
 perturbation_period = parameters.perturbation_period; % period of perturbation (s)
 deltaQonQ = parameters.deltaQonQ;   % fractional perturbation to Q0.
 relaxation_parameter=parameters.relaxation_parameter;   % used in nonlinear loop.
+viscosity_model = parameters.viscosity_model;
 Tb=parameters.Tb;       % Basal temperature (K)
 Ts=parameters.Ts;       % Surface temperature (K)
 t_end = parameters.end_time; % Simulation end time (s)
 save_interval = parameters.save_interval; % Time between saved results (s)
-save_start = parameters.save_start; % Time to begin saving (s)
+save_start = 0*parameters.save_start; % Time to begin saving (s)
+
+viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
+viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
 
 % Numerical parameters
 ifail = 1;              % index into list of times at which failure occurred.
@@ -56,12 +60,19 @@ alpha_l = 3e-5; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
 mub=1e15;       % basal viscosity (Pa-s)
 mu = @(T) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
+if viscosity_model == 0
+    mu = @(T,stress) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
+elseif viscosity_model == 1
+    mu = @(T,stress) goldsby_kohlstedt(stress,T,viscosity.d,viscosity.P); % Goldsby-Kohlstedt effective viscosity
+end
+
+
 % Failure criterion:
 cohesion = 2e7;  % plastic yield strength
 friction = 0.6; % friction angle for plastic yielding
 
 % calculate maxwell time at 100, 270
-fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(Ts)/E,mu(Tb)/E);
+fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(Ts,0)/E,mu(Tb,0)/E);
 fprintf('Thermal diffusion timescale %.2e\n',(Ro-Ri)^2/kappa);
 
 % set end time and grid resolution
@@ -107,6 +118,8 @@ erupted_volume_volumechange = 0;
 % initialize solution vectors (IC)
 sigma_r_last = zeros(nr,1); % initial stresses
 sigma_t_last = zeros(nr,1); % initial stresses
+siiD_last = zeros(nr,1); % deviatoric stress invariant - used for viscosity
+
 
 % Initialize T with steady numerical solution.
 for iter=1:10
@@ -146,7 +159,7 @@ while time < t_end
     % 1. Calculate basal freeze-on and interpolate old solution onto new mesh
     % calculate heat flux
     dtlast = dt;
-    dt = min(dtmax,2*dtlast); % limit amount by which timestep can increase.    
+    dt = min(dtmax,2*dtlast); % limit amount by which timestep can increase.
     Tg = Tb-(T_last(2)-Tb);
     dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1)); % calculate dT/dr at ocean-ice interface using centered difference
     qb = -k(parameters.Tb)*dTdr_b_last;
@@ -164,7 +177,7 @@ while time < t_end
         dt = dtmin;
         disp('Setting dt = dtmin');
     end
-    if any(failure_mask)
+    if any(failure_mask) && Pex >=0
         dt = dtmin;
     end
     
@@ -199,7 +212,7 @@ while time < t_end
     pex_store = zeros(maxiter,1);
     pexpost_store = zeros(maxiter,1);
     for iter=1:maxiter
-        if iter>3 && iter < 100
+        if iter>10 && iter < 100
             [tmp,ind] = sort(pexpost_store(1:iter-1)-pex_store(1:iter-1));
             [tmp1,ind1] = unique(tmp);
             Pex = interp1(tmp1,pex_store(ind(ind1)),0,'linear','extrap');
@@ -212,79 +225,126 @@ while time < t_end
             warning('last iteration, no convergence');
         end
         % calculate viscosity at each node
-        mu_node = zeros(nr,1);
-        mu_node(:) = mu(T);
-        % reduce Maxwell time in region experiencing failure
-        if all(failure_mask) % crack reaches ocean - relieve all overpressure
-            if Pex_last >= Pex_crit % allow for extrusion if P>Pex_crit
-                % Calculate the volume erupted (dP)*beta*V0 + V-V0
-                pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));
-                urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
-                volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
+        
+        ivisc=1;
+        visc_iter=100;
+        visc_converged = false;
+        yielding = false(size(T));
+        while ~visc_converged && ivisc<=visc_iter
+            if( ivisc == 1)
+                siiD = siiD_last;
             else
-                pressure_contribution = 0;
-                volume_contribution = 0;
+                siiD = siiD_post;
             end
-            % reset stresses and uplift
-            %             sigma_r_last = 0*sigma_r_last;
-            %             sigma_t_last = 0*sigma_t_last;
-            %             er_last = 0*er_last;
-            %             et_last = 0*et_last;
-            %             ur_last = 0*ur_last;
-            minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
-            mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timest
-            Pex=0; % force zero pressure under the assumption that eruptions relieve overpressure
-            converged = true;
-            Ri = Ri - z;
-            z = 0;
-            z_last=0;
-            % move the inner radius effectively to the current position
-            % of the base of the ice shell. Then set the amount of
-            % freezing to zero.
-            % It's ok to increase the erupted volume counter inside the
-            % nonlinear loop because Pex is fixed and no iteration will
-            % occur.
-            erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
-            erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
-            erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
-        elseif( any(failure_mask) ) % Crack does not reach ocean - overpressure is not relieved.
-            minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
-            mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
-            if iter==1
-                Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices can cause convergence problems.
+            mu_node = zeros(nr,1);
+            mu_node(:) = mu(T,siiD);
+            % reduce Maxwell time in region experiencing failure
+            if all(failure_mask) % crack reaches ocean - relieve all overpressure
+                if Pex_last >= Pex_crit % allow for extrusion if P>Pex_crit
+                    % Calculate the volume erupted (dP)*beta*V0 + V-V0
+                    pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));
+                    urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
+                    volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
+                else
+                    pressure_contribution = 0;
+                    volume_contribution = 0;
+                end
+                % reset stresses and uplift
+                %             sigma_r_last = 0*sigma_r_last;
+                %             sigma_t_last = 0*sigma_t_last;
+                %             er_last = 0*er_last;
+                %             et_last = 0*et_last;
+                %             ur_last = 0*ur_last;
+                minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
+                mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timest
+                Pex=0; % force zero pressure under the assumption that eruptions relieve overpressure
+                converged = true;
+                Ri = Ri - z;
+                z = 0;
+                z_last=0;
+                % move the inner radius effectively to the current position
+                % of the base of the ice shell. Then set the amount of
+                % freezing to zero.
+                % It's ok to increase the erupted volume counter inside the
+                % nonlinear loop because Pex is fixed and no iteration will
+                % occur.
+                erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
+                erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
+                erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
+            elseif( any(failure_mask) ) % Crack does not reach ocean - overpressure is not relieved.
+                minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
+                mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
+                if iter==1
+                    Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices can cause convergence problems.
+                end
             end
+            if( ivisc == 1)
+                siiD = siiD_last;
+            else
+                siiD = siiD_post;
+                if any(yielding)
+                    minimum_viscosity_prefactor = 1e-2;
+                    mu_node(yielding) = max(mu_vp(yielding),minimum_viscosity_prefactor*mu_node(yielding));
+                end
+            end
+            
+            % No failure - calculate stresses as usual
+            [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
+            siiD_post = sqrt( 0.5*(sigma_rD.^2 + 2*sigma_tD.^2) );
+            norm_change = min(norm(siiD_post-siiD)/norm(siiD),norm(siiD_post-siiD));% change in norm of deviatoric stress invariant - used for convergence test
+
+            % 5. Calculate the strains
+            dT = T-T_last;
+            dr1 = grid_r(2)-grid_r(1);
+            dr2 = grid_r(3)-grid_r(1);
+            L = [0 0 1;
+                dr1^2 dr1 1;
+                dr2^2 dr2 1];
+            R = T(1:3);
+            coef = L\R;
+            dTdr_b = coef(2);
+            %             dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
+            dT(1) = delta_rb*dTdr_b;
+            
+            dsigma_t = sigma_t - sigma_t_last;
+            dsigma_r = sigma_r - sigma_r_last;
+            %             mu_node(2:end-1) = exp(0.5*(log(mu_node(1:end-2))+log(mu_node(3:end))));
+            de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
+            de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
+            
+            er = er_last + de_r;
+            et = et_last + de_t;
+            ur = grid_r'.*et; %radial displacement
+            
+            ei = 2*de_t + de_r; % first invariant
+            de_tD = de_t - 1/3*ei;
+            de_rD = de_r - 1/3*ei;
+            eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric strain
+            siiD = siiD_post;
+            si = sigma_r + 2*sigma_t; % trace of stress tensor.
+            
+            lithostatic_pressure = rho_i*g*(grid_r(end)-grid_r');
+            sigma_yield = (cohesion + friction*(1/3*si - lithostatic_pressure));
+            new_yielding = siiD > sigma_yield; % note that compression is negative. positive I_sigma means compression            
+    
+            % Check for convergence
+            if any(new_yielding)
+                de_t_vp = 1/2*(sigma_tD./mu_node);
+                de_r_vp = 1/2*(sigma_rD./mu_node);
+                eii_vp = sqrt( 0.5*(de_r_vp.^2 + 2*de_t_vp.^2) );
+                mu_vp = mu_node.*(sigma_yield)./(2*mu_node.*eii_vp + sigma_yield);
+                yielding = yielding | new_yielding;
+            else
+                if isnan(norm_change)
+                    keyboard
+                elseif any(yielding) && ivisc < 20
+                    visc_converged = false;
+                elseif norm_change < 1e-4
+                    visc_converged = true;
+                end  
+            end
+            ivisc = ivisc+1;
         end
-        
-        % No failure - calculate stresses as usual
-        [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
-        
-        % 5. Calculate the strains
-        dT = T-T_last;
-        dr1 = grid_r(2)-grid_r(1);
-        dr2 = grid_r(3)-grid_r(1);
-        L = [0 0 1;
-            dr1^2 dr1 1;
-            dr2^2 dr2 1];
-        R = T(1:3);
-        coef = L\R;
-        dTdr_b = coef(2);
-        %             dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
-        dT(1) = delta_rb*dTdr_b;
-        
-        dsigma_t = sigma_t - sigma_t_last;
-        dsigma_r = sigma_r - sigma_r_last;
-        %             mu_node(2:end-1) = exp(0.5*(log(mu_node(1:end-2))+log(mu_node(3:end))));
-        de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
-        de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
-        er = er_last + de_r;
-        et = et_last + de_t;
-        ur = grid_r'.*et; %radial displacement
-        
-        ei = 2*de_t + de_r; % first invariant
-        de_tD = de_t - 1/3*ei;
-        de_rD = de_r - 1/3*ei;
-        eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric stress
-        
         % re-calculate excess pressure using new uplift
         %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
         Pex_post = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
@@ -304,9 +364,10 @@ while time < t_end
         %         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
         
         % check for convergence
-        if abs( Pex_post-Pex )/abs(Pex) < 1e-3
-            fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
+        if abs( Pex_post-Pex )/abs(Pex) < 1e-2
+            fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d(%d) iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter,ivisc);
             converged = true;
+            
         elseif iter==maxiter
             for i=1:maxiter
                 fprintf('iter %d. Pex_post %.12e Pex %.12e\n',i,pexpost_store(i),pex_store(i));
@@ -334,14 +395,14 @@ while time < t_end
     
     
     % 5. Determine whether tensile failure has occurred
-    failure = tensile_failure_criterion(Ro-grid_r',sigma_tD,rho_i,g,tensile_strength);
+    failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
     if( any(failure) ) % failure is occurring
         disp(['Failure criterion has been reached']);
         idx_shallow = find(failure,1,'last');
         idx_deep = find(failure,1,'first');
-        fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
-        fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
-        fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
+        %         fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
+        %         fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
+        %         fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
         
         % check to see if a crack could propagate to surface
         % 1. Find the midpoint of the crack
@@ -425,15 +486,17 @@ while time < t_end
         end
         failure_mask(no_longer_failing) = false;
     end
-    yielding = eiiD > (cohesion - 1/3*ei*friction); % note that compression is negative
-    if any(yielding)
+    
+    % check for an unphysically low ocean pressure
+    Ptot = Pex + rho_i*g*(grid_r(end)-grid_r(1));
+    if Ptot < 6e-3
         keyboard
     end
-    
     
     % 6. advance to next time step and plot (if needed)
     sigma_r_last = sigma_r;
     sigma_t_last = sigma_t;
+    siiD_last = siiD;
     T_last = T;
     er_last = er;
     et_last = et;

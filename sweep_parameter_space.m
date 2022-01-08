@@ -12,47 +12,41 @@ if do_runs
         if moon==0
             % Europa
             parameters = struct();
-            parameters.Tb = 273;
-            parameters.Ts = 100;
             parameters.g  = 1.30;
             parameters.Ro = 1.561e6;
             parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
-            parameters.relaxation_parameter = 1e-4;  % europa value
-            parameters.nr = 512;
-            parameters.tensile_strength = 1e6;
-            parameters.perturbation_period = 1e8*seconds_in_year;
-            parameters.save_start = parameters.perturbation_period*5;
-            parameters.save_interval = parameters.perturbation_period/1000;
-            parameters.end_time = parameters.perturbation_period*10;
-            parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
+            parameters.relaxation_parameter = 1e-4;  % europa value            
             parameters.label = 'Europa';
         else
             % Enceladus
-            parameters = struct();
-            parameters.Tb = 273;
-            parameters.Ts = 100;
-            parameters.k = @(T) 651./T; %Petrenko and Whitworth 1999
-            
+            parameters = struct();            
             parameters.g  = 0.113;
             parameters.Ro = 2.52e5;
             parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
-            parameters.relaxation_parameter = 1e-2;
-            parameters.tensile_strength = 1e6;
-            parameters.perturbation_period = 1e8*seconds_in_year;
-            parameters.save_start = parameters.perturbation_period*5;
-            parameters.save_interval = parameters.perturbation_period/1000;
-            parameters.end_time = parameters.perturbation_period*10;
+            parameters.relaxation_parameter = 1e-2;           
             parameters.label = 'Enceladus';
         end
         
-         ndQ = 15;
-         dQ = linspace(0.1,0.8,ndQ);
-         nthick = 33;
-         thicknesses = logspace(log10(2e3),log10(20e3),nthick);
-%         ndQ = 1;
-%         nthick = 1;
-%         dQ = [0.8];
-%         thicknesses = [2e4];
+        parameters.tensile_strength = 1e6;
+        parameters.viscosity_model = 1;  % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+        parameters.nr = 512;
+        parameters.Tb = 273;
+        parameters.Ts = 100;
+        parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
+        parameters.perturbation_period = 1e8*seconds_in_year;
+        parameters.save_start = parameters.perturbation_period*5;
+        parameters.save_interval = parameters.perturbation_period/1000;
+        parameters.end_time = parameters.perturbation_period*10;
+        
+
+%          ndQ = 15;
+%          dQ = linspace(0.1,0.8,ndQ);
+%          nthick = 33;
+%          thicknesses = logspace(log10(2e3),log10(20e3),nthick);
+        ndQ = 1;
+        nthick = 1;
+        dQ = [0.8];
+        thicknesses = [2e4];
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
@@ -69,7 +63,7 @@ if do_runs
             end
         end
         % parfor here for real runs:
-        parfor irun=1:ndQ*nthick
+        for irun=1:ndQ*nthick
             all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
         end
         save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
