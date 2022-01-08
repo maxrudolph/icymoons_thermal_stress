@@ -28,7 +28,7 @@ if do_runs
         end
         
         parameters.tensile_strength = 1e6;
-        parameters.viscosity_model = 1;  % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+        parameters.viscosity_model = 0;  % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
         parameters.nr = 512;
         parameters.Tb = 273;
         parameters.Ts = 100;

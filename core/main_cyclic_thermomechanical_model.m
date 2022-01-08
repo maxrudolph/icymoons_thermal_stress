@@ -14,7 +14,7 @@ Tb=parameters.Tb;       % Basal temperature (K)
 Ts=parameters.Ts;       % Surface temperature (K)
 t_end = parameters.end_time; % Simulation end time (s)
 save_interval = parameters.save_interval; % Time between saved results (s)
-save_start = 0*parameters.save_start; % Time to begin saving (s)
+save_start = parameters.save_start; % Time to begin saving (s)
 
 viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
 viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
@@ -227,9 +227,11 @@ while time < t_end
         % calculate viscosity at each node
         
         ivisc=1;
-        visc_iter=100;
+        visc_iter=1000;
         visc_converged = false;
         yielding = false(size(T));
+        dsig_yield = Inf;
+        dsig_yield_last = Inf;
         while ~visc_converged && ivisc<=visc_iter
             if( ivisc == 1)
                 siiD = siiD_last;
@@ -321,28 +323,39 @@ while time < t_end
             de_rD = de_r - 1/3*ei;
             eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric strain
             siiD = siiD_post;
-            si = sigma_r + 2*sigma_t; % trace of stress tensor.
-            
+
+            %5a. Calculate the yield stress (sigma_yield) and check for
+            %plastic yielding.
+            si = sigma_r + 2*sigma_t; % trace of stress tensor.                        
             lithostatic_pressure = rho_i*g*(grid_r(end)-grid_r');
-            sigma_yield = (cohesion + friction*(1/3*si - lithostatic_pressure));
+            sigma_yield = max((cohesion + friction*(1/3*si - lithostatic_pressure)),0);
             new_yielding = siiD > sigma_yield; % note that compression is negative. positive I_sigma means compression            
-    
-            % Check for convergence
+         
+            
+            %                 de_t_vp = 1/2*(sigma_tD./mu_node);
+            %                 de_r_vp = 1/2*(sigma_rD./mu_node);
+            %                 mu_vp = mu_node.*(sigma_yield)./(2*mu_node.*eii_vp + sigma_yield);
+            siiD_el = (E*dt + mu_node)./mu_node .* siiD; % gerya equation 13.50
+            mu_vp = E*dt*sigma_yield./(siiD_el - sigma_yield);
+            yielding = yielding | new_yielding;
+            dsig_yield_last = dsig_yield;
+            dsig_yield = 1/nnz(yielding)*sqrt( sum( (siiD(yielding) - sigma_yield(yielding)).^2 ) );
+            dsig_yield_change = abs(dsig_yield_last-dsig_yield)/dsig_yield;
             if any(new_yielding)
-                de_t_vp = 1/2*(sigma_tD./mu_node);
-                de_r_vp = 1/2*(sigma_rD./mu_node);
-                eii_vp = sqrt( 0.5*(de_r_vp.^2 + 2*de_t_vp.^2) );
-                mu_vp = mu_node.*(sigma_yield)./(2*mu_node.*eii_vp + sigma_yield);
-                yielding = yielding | new_yielding;
-            else
-                if isnan(norm_change)
-                    keyboard
-                elseif any(yielding) && ivisc < 20
-                    visc_converged = false;
-                elseif norm_change < 1e-4
+                %fprintf('dsigyield = %e, dsigyield change %f\n',dsig_yield,dsig_yield_change);
+            end   
+            if any(yielding)
+                if ivisc > 2 && dsig_yield_change < 1e-2
                     visc_converged = true;
-                end  
+                end
+            else
+                if viscosity_model == 0
+                    visc_converged = true;
+                elseif ivisc > 2 && norm_change < 1e-4
+                    visc_converged = true;
+                end
             end
+    
             ivisc = ivisc+1;
         end
         % re-calculate excess pressure using new uplift
@@ -364,8 +377,8 @@ while time < t_end
         %         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
         
         % check for convergence
-        if abs( Pex_post-Pex )/abs(Pex) < 1e-2
-            fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d(%d) iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter,ivisc);
+        if abs( Pex_post-Pex )/abs(Pex) < 1e-3
+            fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d(%d) iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter,ivisc-1);
             converged = true;
             
         elseif iter==maxiter
@@ -486,13 +499,7 @@ while time < t_end
         end
         failure_mask(no_longer_failing) = false;
     end
-    
-    % check for an unphysically low ocean pressure
-    Ptot = Pex + rho_i*g*(grid_r(end)-grid_r(1));
-    if Ptot < 6e-3
-        keyboard
-    end
-    
+        
     % 6. advance to next time step and plot (if needed)
     sigma_r_last = sigma_r;
     sigma_t_last = sigma_t;
@@ -524,6 +531,13 @@ while time < t_end
         results.Pex_crit(isave) = Pex_crit;
         last_store = time; isave = isave+1;
     end
+    % check for an unphysically low ocean pressure
+    Ptot = Pex + rho_i*g*(grid_r(end)-grid_r(1));
+    if Ptot < 612 
+        disp('Ocean pressure below 6 mbar. Ending calculation.');
+        break;
+    end
+    
 end
 %% Trim results structure
 ifail2 = find(results.failure_time>0,1,'last');
@@ -554,6 +568,7 @@ results.failure_thickness = results.failure_thickness(fail_mask);
 results.failure_top = results.failure_top(fail_mask);
 results.failure_bottom = results.failure_bottom(fail_mask);
 results.failure_initial = results.failure_initial(fail_mask);
+results.pressure_error = Ptot < 612;
 
 ifail2 = find(results.failure_eruption_time>0,1,'last');
 ifail1 = find(results.failure_eruption_time>=save_start,1,'first');
