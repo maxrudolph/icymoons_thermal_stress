@@ -212,14 +212,19 @@ while time < t_end
     pex_store = zeros(maxiter,1);
     pexpost_store = zeros(maxiter,1);
     for iter=1:maxiter
-        if iter>10 && iter < 100
+        if iter == 1
+            Pex = Pex_last;
+            extra_relaxation = 1.0;
+        elseif iter>10 && iter < 30
             [tmp,ind] = sort(pexpost_store(1:iter-1)-pex_store(1:iter-1));
             [tmp1,ind1] = unique(tmp);
             Pex = interp1(tmp1,pex_store(ind(ind1)),0,'linear','extrap');
-        elseif iter>1
-            Pex = Pex + relaxation_parameter*(Pex_post-Pex);
-        else
-            Pex = Pex_last;
+        elseif iter > 1
+            Pex = Pex + extra_relaxation*relaxation_parameter*(Pex_post-Pex);                    
+        end
+        if ~mod(iter,100)
+           Pex = Pex_last;
+           extra_relaxation = extra_relaxation / 2; 
         end
         if iter == maxiter
             warning('last iteration, no convergence');
@@ -285,7 +290,7 @@ while time < t_end
             else
                 siiD = siiD_post;
                 if any(yielding)
-                    minimum_viscosity_prefactor = 1e-2;
+                    minimum_viscosity_prefactor = 1e-3;
                     mu_node(yielding) = max(mu_vp(yielding),minimum_viscosity_prefactor*mu_node(yielding));
                 end
             end
@@ -345,7 +350,7 @@ while time < t_end
                 %fprintf('dsigyield = %e, dsigyield change %f\n',dsig_yield,dsig_yield_change);
             end   
             if any(yielding)
-                if ivisc > 2 && dsig_yield_change < 1e-2
+                if ivisc > 2 && (dsig_yield_change < 1e-4 || dsig_yield < 1e7/1e3)
                     visc_converged = true;
                 end
             else
@@ -377,7 +382,7 @@ while time < t_end
         %         du_dp = (du_p-du_m)/(2*perturb); % d(uplift)/d(pressure)
         
         % check for convergence
-        if abs( Pex_post-Pex )/abs(Pex) < 1e-3
+        if abs( Pex_post-Pex )/abs(Pex) < 1e-2
             fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.2e Pex %.2e, converged in %d(%d) iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter,ivisc-1);
             converged = true;
             
