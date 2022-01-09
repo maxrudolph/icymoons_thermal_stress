@@ -8,7 +8,7 @@ do_runs = true
 strength_label = '1MPa';
 
 if do_runs
-    for moon=1:1
+    for moon=0:1
         if moon==0
             % Europa
             parameters = struct();
@@ -34,19 +34,16 @@ if do_runs
         parameters.Ts = 100;
         parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
         parameters.perturbation_period = 1e8*seconds_in_year;
-        parameters.save_start = parameters.perturbation_period*5;
+        parameters.save_start = 0*parameters.perturbation_period*5;
         parameters.save_interval = parameters.perturbation_period/1000;
         parameters.end_time = parameters.perturbation_period*10;
         
 
-          ndQ = 4;
-          dQ = linspace(0.1,0.8,ndQ);
-          nthick = 3;
-          thicknesses = logspace(log10(2e3),log10(20e3),nthick);
-%         ndQ = 1;
-%         nthick = 1;
-%         dQ = [0.8];
-%         thicknesses = [2e4];
+        ndQ = 15;
+        dQ = linspace(0.1,0.8,ndQ);
+        nthick = 33;
+        thicknesses = logspace(log10(2e3),log10(20e3),nthick);
+        
         all_results = cell(ndQ,nthick);
         all_parameters = cell(ndQ,nthick);
         
@@ -63,7 +60,7 @@ if do_runs
             end
         end
         % parfor here for real runs:
-        for irun=4:ndQ*nthick
+        parfor irun=1:ndQ*nthick
             all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
         end
         save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
@@ -73,7 +70,7 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
     
-    for moon=0:1
+    for moon=1:1
         clearvars -except seconds_in_year moon strength_label;
         seconds_in_year = 3.1558e7;
         disp('loading data');
