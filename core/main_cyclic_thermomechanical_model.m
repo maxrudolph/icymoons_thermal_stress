@@ -408,7 +408,11 @@ while time < t_end && ~terminate
         else
             stress_above = cumtrapz( grid_r(midpoint_ind:end), sigma_t_tot(midpoint_ind:end) );  % integrate in upward direction
         end
-        stress_below = cumtrapz( depth(midpoint_ind:-1:1), sigma_t_tot(midpoint_ind:-1:1) ); % integrate in downward direction
+        if midpoint_ind ~= 1
+            stress_below = cumtrapz( depth(midpoint_ind:-1:1), sigma_t_tot(midpoint_ind:-1:1) ); % integrate in downward direction
+        else
+           stress_below = 0; 
+        end
         if stress_above(end) >= 0
             disp('Crack reached surface');
             surface_failure = true;
