@@ -34,7 +34,7 @@ if do_runs
         parameters.Ts = 100;
         parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
         parameters.perturbation_period = 1e8*seconds_in_year;
-        parameters.save_start = 0*parameters.perturbation_period*5;
+        parameters.save_start = parameters.perturbation_period*5;
         parameters.save_interval = parameters.perturbation_period/1000;
         parameters.end_time = parameters.perturbation_period*10;
         
