@@ -567,7 +567,7 @@ if Ptot < 612
 elseif iter == maxiter
     results.termination = 2;
 else
-    results.terminatiom = 0;
+    results.termination = 0;
 end
 ifail2 = find(results.failure_eruption_time>0,1,'last');
 ifail1 = find(results.failure_eruption_time>=save_start,1,'first');
