@@ -4,74 +4,77 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = false;
-strength_label = '3MPa';
-result_dir = 'results_01112022'
+do_runs = true;
+% strength_label = '1MPa';
+% result_dir = 'results_01112022';
+result_dir = '.';
 
 if do_runs
-    for moon=1:1
-        if moon==0
-            % Europa
-            parameters = struct();
-            parameters.g  = 1.30;
-            parameters.Ro = 1.561e6;
-            parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
-            parameters.relaxation_parameter = 1e-4;  % europa value            
-            parameters.label = 'Europa';
-        else
-            % Enceladus
-            parameters = struct();            
-            parameters.g  = 0.113;
-            parameters.Ro = 2.52e5;
-            parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
-            parameters.relaxation_parameter = 1e-1;           
-            parameters.label = 'Enceladus';
-        end
-        
-        parameters.tensile_strength = 1e6;
-        parameters.viscosity_model = 0;  % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
-        parameters.nr = 512;
-        parameters.Tb = 273;
-        parameters.Ts = 100;
-        parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
-        parameters.perturbation_period = 1e8*seconds_in_year;
-        parameters.save_start = parameters.perturbation_period*5;
-        parameters.save_interval = parameters.perturbation_period/1000;
-        parameters.end_time = parameters.perturbation_period*10;
-        
-
-        ndQ = 15;
-        dQ = linspace(0.1,0.8,ndQ);
-        nthick = 33;
-        thicknesses = logspace(log10(2e3),log10(20e3),nthick);
-        
-        all_results = cell(ndQ,nthick);
-        all_parameters = cell(ndQ,nthick);
-        
-        for idQ = 1:length(dQ)
-            for ithick = 1:length(thicknesses)
-                parameters1 = parameters;
-                parameters1.Ri = parameters.Ro-thicknesses(ithick);
-                parameters1.deltaQonQ = dQ(idQ);
-                if thicknesses(ithick) < 2e3
-                    parameters1.relaxation_parameter = parameters1.relaxation_parameter/10;
-                end
-                parameters1.nr = min([512 ceil(thicknesses(ithick)/20)]);
-                all_parameters{idQ,ithick} = parameters1;
+    for tensile_strength = [3e6 1e6]
+        for moon=1:1
+            if moon==0
+                % Europa
+                parameters = struct();
+                parameters.g  = 1.30;
+                parameters.Ro = 1.561e6;
+                parameters.Rc = parameters.Ro-1.2e5;     % core radius (m)
+                parameters.relaxation_parameter = 1e-4;  % europa value
+                parameters.label = 'Europa';
+            else
+                % Enceladus
+                parameters = struct();
+                parameters.g  = 0.113;
+                parameters.Ro = 2.52e5;
+                parameters.Rc = parameters.Ro-1.6e5;     % core radius (m)
+                parameters.relaxation_parameter = 1e-1;
+                parameters.label = 'Enceladus';
             end
+            
+            parameters.tensile_strength = tensile_strength;
+            parameters.viscosity_model = 0;  % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
+            parameters.nr = 512;
+            parameters.Tb = 273;
+            parameters.Ts = 100;
+            parameters.k = @(T) 651./T; % Petrenko and Whitworth 1999
+            parameters.perturbation_period = 1e8*seconds_in_year;
+            parameters.save_start = parameters.perturbation_period*5;
+            parameters.save_interval = parameters.perturbation_period/1000;
+            parameters.end_time = parameters.perturbation_period*7;
+            
+            
+            ndQ = 15;
+            dQ = linspace(0.1,0.8,ndQ);
+            nthick = 33;
+            thicknesses = logspace(log10(2e3),log10(20e3),nthick);
+            
+            all_results = cell(ndQ,nthick);
+            all_parameters = cell(ndQ,nthick);
+            
+            for idQ = 1:length(dQ)
+                for ithick = 1:length(thicknesses)
+                    parameters1 = parameters;
+                    parameters1.Ri = parameters.Ro-thicknesses(ithick);
+                    parameters1.deltaQonQ = dQ(idQ);
+                    if thicknesses(ithick) < 2e3
+                        parameters1.relaxation_parameter = parameters1.relaxation_parameter/10;
+                    end
+                    parameters1.nr = min([512 ceil(thicknesses(ithick)/20)]);
+                    all_parameters{idQ,ithick} = parameters1;
+                end
+            end
+            % parfor here for real runs:
+            parfor irun=1:ndQ*nthick
+                all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
+            end
+            save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
         end
-        % parfor here for real runs:
-        parfor irun=1:ndQ*nthick
-            all_results{irun} = main_cyclic_thermomechanical_model(all_parameters{irun});
-        end
-        save([parameters.label '_' num2str(parameters.tensile_strength/1e6) 'MPa_workspace.mat'],'all_parameters','all_results','ndQ','nthick','thicknesses','dQ','-v7.3');
     end
 else% postprocess:
     %% Load results
     close all;
     addpath ~/sw/matlab/crameri
     
-    for moon=0:1
+    for moon=1:1
         clearvars -except seconds_in_year moon strength_label result_dir;
         seconds_in_year = 3.1558e7;
         disp('loading data');
@@ -141,9 +144,9 @@ else% postprocess:
                 
                 % calculate the average thickness.
                 if ~isempty(results.time)
-                thickness = parameters.Ro-(results.Ri-results.z);
-                average_thickness = 1/(results.time(end)-results.time(1))*sum( (thickness(1:end-1) + thickness(2:end))/2 .* diff(results.time));
-                all_actual_thickness(idQ,ithick) = average_thickness;
+                    thickness = parameters.Ro-(results.Ri-results.z);
+                    average_thickness = 1/(results.time(end)-results.time(1))*sum( (thickness(1:end-1) + thickness(2:end))/2 .* diff(results.time));
+                    all_actual_thickness(idQ,ithick) = average_thickness;
                 end
                 % approximate ice shell thickness at time of failure
                 if any(results.failure_thickness)
@@ -367,10 +370,12 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
+            for ithick = 1:nthick
+                for idQ = 1:ndQ
             %             for ithick = [1 nthick]
             %                 for idQ = [1 ndQ]
-            for ithick=[1 3 14 20 nthick]
-                for idQ=[ 5 ndQ]
+%             for ithick=[1 3 14 20 nthick]
+%                 for idQ=[ 5 ndQ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
