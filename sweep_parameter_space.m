@@ -4,11 +4,12 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true
-strength_label = '1MPa';
+do_runs = false;
+strength_label = '3MPa';
+result_dir = 'results_01112022'
 
 if do_runs
-    for moon=0:1
+    for moon=1:1
         if moon==0
             % Europa
             parameters = struct();
@@ -70,14 +71,14 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
     
-    for moon=1:1
-        clearvars -except seconds_in_year moon strength_label;
+    for moon=0:1
+        clearvars -except seconds_in_year moon strength_label result_dir;
         seconds_in_year = 3.1558e7;
         disp('loading data');
         if moon==0
-            load(['./Europa_' strength_label '_workspace.mat']);
+            load([result_dir '/Europa_' strength_label '_workspace.mat']);
         else
-            load(['./Enceladus_' strength_label '_workspace.mat']);
+            load([result_dir '/Enceladus_' strength_label '_workspace.mat']);
         end
         
         % data selection
@@ -139,9 +140,11 @@ else% postprocess:
                 
                 
                 % calculate the average thickness.
+                if ~isempty(results.time)
                 thickness = parameters.Ro-(results.Ri-results.z);
                 average_thickness = 1/(results.time(end)-results.time(1))*sum( (thickness(1:end-1) + thickness(2:end))/2 .* diff(results.time));
                 all_actual_thickness(idQ,ithick) = average_thickness;
+                end
                 % approximate ice shell thickness at time of failure
                 if any(results.failure_thickness)
                     failure_thickness = interp1(results.time,parameters.Ro-(results.Ri-results.z),results.failure_time(time_mask));
@@ -364,10 +367,10 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick = [1 nthick]
-                for idQ = [1 ndQ]
-                    %             for ithick=[1 3 14 20 nthick]
-                    %                 for idQ=[ 5 ndQ]
+            %             for ithick = [1 nthick]
+            %                 for idQ = [1 ndQ]
+            for ithick=[1 3 14 20 nthick]
+                for idQ=[ 5 ndQ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
