@@ -240,7 +240,7 @@ while time < t_end && ~terminate
         end
         
         % calculate viscosity at each node
-        for ivisc=1:5
+        for ivisc=1:10
             mu_node = zeros(nr,1);
             mu_node(:) = mu(T,siiD_last);
             % reduce Maxwell time in cracked region
@@ -386,8 +386,9 @@ while time < t_end && ~terminate
     % 5. Determine whether tensile failure has occurred
     failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
     % require that the deviatoric stress in the tangential direction be consistent with vertical cracks, as required.
-    % the tensile strength / 100 is meant to be a small positive stress
-    failure = failure & sigma_tD > tensile_strength/100; 
+    % the tensile strength / 10 is meant to enforce a small positive
+    % deviatoric stress
+    failure = failure & sigma_tD > tensile_strength/10; 
     if( any(failure) ) % failure is occurring
         disp(['Failure criterion has been reached']);
         idx_shallow = find(failure,1,'last');

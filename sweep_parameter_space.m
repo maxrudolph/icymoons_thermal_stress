@@ -5,13 +5,13 @@ close all;
 addpath core;
 seconds_in_year = 3.1558e7;
 do_runs = true;
-% strength_label = '1MPa';
+strength_label = '1MPa';
 % result_dir = 'results_01112022';
 result_dir = '.';
 
 if do_runs
     for tensile_strength = [3e6 1e6]
-        for moon=1:1
+        for moon=0:1
             if moon==0
                 % Europa
                 parameters = struct();
@@ -39,12 +39,12 @@ if do_runs
             parameters.perturbation_period = 1e8*seconds_in_year;
             parameters.save_start = parameters.perturbation_period*5;
             parameters.save_interval = parameters.perturbation_period/1000;
-            parameters.end_time = parameters.perturbation_period*7;
+            parameters.end_time = parameters.perturbation_period*8;
             
             
             ndQ = 15;
             dQ = linspace(0.1,0.8,ndQ);
-            nthick = 33;
+            nthick = 32;
             thicknesses = logspace(log10(2e3),log10(20e3),nthick);
             
             all_results = cell(ndQ,nthick);
@@ -74,7 +74,7 @@ else% postprocess:
     close all;
     addpath ~/sw/matlab/crameri
     
-    for moon=1:1
+    for moon=0:1
         clearvars -except seconds_in_year moon strength_label result_dir;
         seconds_in_year = 3.1558e7;
         disp('loading data');
@@ -252,9 +252,9 @@ else% postprocess:
             exportgraphics(gcf,['Figure2_' strength_label '_regimes.eps']);
         end
         %% Look at phase lag between qb and thickness
-        all_phase_lags = zeros(ndQ,nthick);
-        all_ampfrac = zeros(ndQ,nthick);
-        all_Qbar = zeros(ndQ,nthick);
+        all_phase_lags = NaN*zeros(ndQ,nthick);
+        all_ampfrac = NaN*zeros(ndQ,nthick);
+        all_Qbar = NaN*zeros(ndQ,nthick);
         for ithick=1:nthick
             for idQ=1:ndQ
                 
@@ -265,40 +265,41 @@ else% postprocess:
                 
                 results = all_results{idQ,ithick};
                 parameters = all_parameters{idQ,ithick};
-                
-                actual_dz = (results.Ri-results.z) - mean(results.Ri-results.z);
-                actual_thickness = parameters.Ro - (results.Ri-results.z);
-                %         plot(results.time/seconds_in_year, (actual_dz/std(actual_dz)) );
-                %         figure, plot(results.time/seconds_in_year, actual_thickness ); hold on
-                %                 ss_thickness = k*(273-100)./results.qb;
-                
-                qsurf = results.Qtot./(4*pi*parameters.Ro^2);
-                ss_thickness = find_steady_h(parameters.Ro,parameters.Tb,parameters.Ts,qsurf);
-                if any( imag(ss_thickness) ~= 0 )
-                    ss_thickness = real(ss_thickness);
-                    warning('complex thickness encountered - this case is not reasonable');
+                if ~results.termination % run finished without error.
+                    actual_dz = (results.Ri-results.z) - mean(results.Ri-results.z);
+                    actual_thickness = parameters.Ro - (results.Ri-results.z);
+                    %         plot(results.time/seconds_in_year, (actual_dz/std(actual_dz)) );
+                    %         figure, plot(results.time/seconds_in_year, actual_thickness ); hold on
+                    %                 ss_thickness = k*(273-100)./results.qb;
+                    
+                    qsurf = results.Qtot./(4*pi*parameters.Ro^2);
+                    ss_thickness = find_steady_h(parameters.Ro,parameters.Tb,parameters.Ts,qsurf);
+                    if any( imag(ss_thickness) ~= 0 )
+                        ss_thickness = real(ss_thickness);
+                        warning('complex thickness encountered - this case is not reasonable');
+                    end
+                    % old method for estimating phase lag:
+                    % [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/4);
+                    % [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/4);
+                    % phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
+                    % interpolate onto uniform time vector
+                    % Estimate the phase lag using MATLAB builtin finddelay:
+                    t_tmp = linspace(results.time(1),results.time(end),length(results.time)); % uniform time vector
+                    dt = t_tmp(2) - t_tmp(1);
+                    actual_thickness_u = interp1(results.time,actual_thickness,t_tmp); % actual thickness, uniform time vector.
+                    ss_thickness_u = interp1(results.time,ss_thickness,t_tmp); % steady state thickness, uniform time vector
+                    %                 phase_lag = finddelay(ss_thickness_u,actual_thickness_u)*dt/seconds_in_year/1e6;
+                    [~,p1] = findpeaks(actual_thickness_u,'MinPeakProminence',100);
+                    [~,p2] = findpeaks(ss_thickness_u,'MinPeakProminence',100);
+                    phase_lag = mean( abs(t_tmp(p2) - t_tmp(p1)) )/seconds_in_year/1e6;
+                    
+                    all_phase_lags(idQ,ithick) = phase_lag;
+                    all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));
+                    % calculate average heat flow
+                    tmp = cumtrapz(results.time,results.Qtot)/(results.time(end)-results.time(1));
+                    all_Qbar(idQ,ithick) = tmp(end);
+                    %         plot(results.time/seconds_in_year,ss_thickness,'--');
                 end
-                % old method for estimating phase lag:
-                % [ss_peaks,ss_ind] = findpeaks(ss_thickness,'MinPeakProminence',std(ss_thickness)/4);
-                % [actual_peaks,actual_ind] = findpeaks(actual_thickness,'MinPeakProminence',std(actual_thickness)/4);
-                % phase_lag = median(results.time(actual_ind) - results.time(ss_ind))/seconds_in_year/1e6;
-                % interpolate onto uniform time vector
-                % Estimate the phase lag using MATLAB builtin finddelay:
-                t_tmp = linspace(results.time(1),results.time(end),length(results.time)); % uniform time vector
-                dt = t_tmp(2) - t_tmp(1);
-                actual_thickness_u = interp1(results.time,actual_thickness,t_tmp); % actual thickness, uniform time vector.
-                ss_thickness_u = interp1(results.time,ss_thickness,t_tmp); % steady state thickness, uniform time vector
-                %                 phase_lag = finddelay(ss_thickness_u,actual_thickness_u)*dt/seconds_in_year/1e6;
-                [~,p1] = findpeaks(actual_thickness_u,'MinPeakProminence',100);
-                [~,p2] = findpeaks(ss_thickness_u,'MinPeakProminence',100);
-                phase_lag = mean( abs(t_tmp(p2) - t_tmp(p1)) )/seconds_in_year/1e6;
-                
-                all_phase_lags(idQ,ithick) = phase_lag;
-                all_ampfrac(idQ,ithick) = (max(actual_thickness)-min(actual_thickness))/(max(ss_thickness)-min(ss_thickness));
-                % calculate average heat flow
-                tmp = cumtrapz(results.time,results.Qtot)/(results.time(end)-results.time(1));
-                all_Qbar(idQ,ithick) = tmp(end);
-                %         plot(results.time/seconds_in_year,ss_thickness,'--');
             end
         end
         if moon==0
@@ -370,12 +371,12 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick = 1:nthick
-                for idQ = 1:ndQ
-            %             for ithick = [1 nthick]
-            %                 for idQ = [1 ndQ]
-%             for ithick=[1 3 14 20 nthick]
-%                 for idQ=[ 5 ndQ]
+            for ithick = 1:5:nthick
+                for idQ = 1:5:ndQ
+                    %             for ithick = [1 nthick]
+                    %                 for idQ = [1 ndQ]
+                    %             for ithick=[1 3 14 20 nthick]
+                    %                 for idQ=[ 5 ndQ]
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');
