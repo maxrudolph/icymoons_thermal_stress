@@ -498,7 +498,7 @@ while time < t_end && ~terminate
     
     time = time + dt;
     
-    if time >= save_start && (time-last_store >= save_interval || time >= t_end || any(failure_mask))
+    if time >= save_start && (time-last_store >= save_interval || time >= t_end || any(failure_mask) || any(no_longer_failing))
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         time_store(isave) = time;
         

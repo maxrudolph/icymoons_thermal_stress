@@ -5,7 +5,7 @@ close all;
 addpath core;
 seconds_in_year = 3.1558e7;
 do_runs = true;
-strength_label = '1MPa';
+strength_label = '3MPa';
 % result_dir = 'results_01112022';
 result_dir = '.';
 
