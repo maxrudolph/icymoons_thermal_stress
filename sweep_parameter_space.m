@@ -4,9 +4,9 @@ clear;
 close all;
 addpath core;
 seconds_in_year = 3.1558e7;
-do_runs = true;
+do_runs = false;
 strength_label = '3MPa';
-% result_dir = 'results_01112022';
+result_dir = 'results_01122022';
 result_dir = '.';
 
 if do_runs
@@ -79,24 +79,48 @@ else% postprocess:
         seconds_in_year = 3.1558e7;
         disp('loading data');
         if moon==0
+            disp(['reading ' result_dir '/Europa_' strength_label '_workspace.mat']);
             load([result_dir '/Europa_' strength_label '_workspace.mat']);
         else
+            disp(['reading ' result_dir '/Enceladus_' strength_label '_workspace.mat']);
             load([result_dir '/Enceladus_' strength_label '_workspace.mat']);
         end
         
         % data selection
         % to make plotting simpler, select data corresponding to
         % interesting part of parameter space for each tensile strength
-        %         if strcmp(strength_label,'1MPa')
-        %             mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
-        %         else
+        %                 if strcmp(strength_label,'1MPa')
+        %                     mask = thicknesses <= 1.1e4 & thicknesses >= 3e3;
+        %                 else
         %             mask = thicknesses <= 2e4   & thicknesses >= 3e3;
         %         end
-        %         all_results = all_results(:,mask);
-        %         all_parameters = all_parameters(:,mask);
-        %         thicknesses = thicknesses(mask);
-        %         nthick = length(thicknesses);
-        
+        if strcmp(strength_label,'3MPa')
+            if moon == 0
+                mask = 1:nthick ~= 8;
+                all_results = all_results(:,mask);
+                all_parameters = all_parameters(:,mask);
+                thicknesses = thicknesses(mask);
+                nthick = length(thicknesses);
+            elseif moon ==1
+                mask = 1:nthick ~= 32 & 1:nthick ~= 15 % remove columns containing two runs that didn't converge
+                
+                all_results = all_results(:,mask);
+                all_parameters = all_parameters(:,mask);
+                thicknesses = thicknesses(mask);
+                nthick = length(thicknesses);
+            end
+        elseif strcmp(strength_label,'1MPa')
+            if moon == 1
+                mask = 1:nthick ~= 7
+                mask1 = 1:ndQ ~= ndQ-1
+                all_results = all_results(mask1,mask);
+                all_parameters = all_parameters(mask1,mask);
+                thicknesses = thicknesses(mask);
+                nthick = length(thicknesses);
+                dQ = dQ(mask1);
+                ndQ = length(dQ);
+            end
+        end
         %% Analyze models
         disp('analyzing models');
         all_erupted_volume = zeros(size(all_results));
@@ -209,8 +233,8 @@ else% postprocess:
         nexttile(1+moon);
         contourf(thicknesses/1e3,dQ,all_failure_fraction,20,'Color','none');
         hold on
-        contour(thicknesses/1e3,dQ,all_failure_fraction,0.985*[1 1],'k');
-        contour(thicknesses/1e3,dQ,all_reach_ocean,[1 1]*0.985,'r--');
+        contour(thicknesses/1e3,dQ,all_failure_fraction,.98*[1 1],'k');
+        %         contour(thicknesses/1e3,dQ,all_reach_ocean,[1 1]*0.99,'r--');
         caxis([0 1]);
         hcb = colorbar();
         hcb.Label.String = 'Fractional penetration';
@@ -234,9 +258,14 @@ else% postprocess:
         set(gca,'Color',[1 1 1]*0.85)
         % Panel 4
         nexttile(5+moon);
-        dt = max(results.time) - 2*parameters.perturbation_period;
+        dt = max(results.time) - min(results.time);
         failures_per_cycle = all_failure_events/(dt/parameters.perturbation_period);
-        contourf(thicknesses/1e3,dQ,failures_per_cycle,linspace(0,200,20),'Color','none');
+        if moon==0
+            contours = 0:1:10;
+        else
+            contours = 0:1:60;
+        end
+        contourf(thicknesses/1e3,dQ,failures_per_cycle,contours,'Color','none');
         hcb=colorbar();
         text(0.05,0.85,char(65+3*moon+2),'FontSize',14,'Units','normalized');
         set(gca,'Color',[1 1 1]*0.85)
@@ -371,12 +400,8 @@ else% postprocess:
         %% Plot outcomes of individual runs
         run_plots = true;
         if run_plots
-            for ithick = 1:5:nthick
-                for idQ = 1:5:ndQ
-                    %             for ithick = [1 nthick]
-                    %                 for idQ = [1 ndQ]
-                    %             for ithick=[1 3 14 20 nthick]
-                    %                 for idQ=[ 5 ndQ]
+            for ithick = 1:5:nthick-1 nthick]
+                for idQ = 1:5:ndQ                    
                     results = all_results{idQ,ithick};
                     parameters = all_parameters{idQ,ithick};
                     isave = find(results.time>0,1,'last');

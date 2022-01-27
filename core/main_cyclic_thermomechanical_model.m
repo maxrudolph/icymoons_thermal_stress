@@ -388,7 +388,7 @@ while time < t_end && ~terminate
     % require that the deviatoric stress in the tangential direction be consistent with vertical cracks, as required.
     % the tensile strength / 10 is meant to enforce a small positive
     % deviatoric stress
-    failure = failure & sigma_tD > tensile_strength/10; 
+    failure = failure & sigma_tD > tensile_strength/10;
     if( any(failure) ) % failure is occurring
         disp(['Failure criterion has been reached']);
         idx_shallow = find(failure,1,'last');
