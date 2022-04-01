@@ -1,5 +1,6 @@
 % Script to solve coupled ice shell thermal and stress evolution
 % Max Rudolph, March 19, 2020
+% adapted for other moons by Alyssa Rhoden, 6/2021
 clear;
 % close all;
 addpath core; % this is where the helper functions live.
@@ -9,7 +10,7 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 2:2
+for isetup = 3:3
     viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
@@ -20,23 +21,65 @@ for isetup = 2:2
         Rc = Ro-1.3e5;         % core radius (m)
         g = 1.3;        % used to calculate failure, m/s/s
         relaxation_parameter=1e-4; % used in nonlinear loop.
-
+        Ts=100;
+        Qbelow = @(time) 0.0; % additional basal heat flux production in W/m^2
+        max_depth = 3.5e4;
         label = 'Europa';
     elseif isetup == 2  % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
         Ri = Ro-1.0e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
+        max_depth = 3.5e4;
+        Ts=100;
+        Qbelow = @(time) 0.0; % additional basal heat flux production in W/m^2
         relaxation_parameter=1e-3; % used in nonlinear loop.
 
         label = 'Enceladus';
+    elseif isetup == 3  % Charon
+        Ro = 6.06e5;            % outer radius of ice shell (m)
+        Ri = Ro-15.0e3;          % inner radius of ice shell (m)
+        Rc = Ro-2.30e5;         % core radius (m)
+        max_depth = Ro-Rc;
+        g = 0.279;        % used to calculate failure, m/s/s
+        Ts=40;
+        
+        Qbelow = @(time) 35e-3; % additional basal heat flux production in W/m^2
+        relaxation_parameter=1e-2; % used in nonlinear loop.
+        
+        label = 'Charon';
+        
+        %     elseif isetup == 4  % Tethys
+        %         Ro = 5.33e5;            % outer radius of ice shell (m)
+        %         Ri = Ro-1.0e3;          % inner radius of ice shell (m)
+        %         Rc = Ro-1.45e5;         % core radius (m)
+        %         g = 0.145;        % used to calculate failure, m/s/s
+        %         label = 'Tethys';
+        %     elseif isetup == 5  % Dione
+        %         Ro = 5.61e5;            % outer radius of ice shell (m)
+        %         Ri = Ro-20.0e3;          % inner radius of ice shell (m)
+        %         Rc = Ro-3.33e5;         % core radius (m)
+        %         g = 0.232;        % used to calculate failure, m/s/s
+        %         label = 'Dione';
+        %     elseif isetup == 6  % Mimas
+        %         Ro = 1.98e5;            % outer radius of ice shell (m)
+        %         Ri = Ro-30.0e3;          % inner radius of ice shell (m)
+        %         Rc = Ro-1.27e5;         % core radius (m)
+        %         g = 0.06;        % used to calculate failure, m/s/s
+        %         label = 'Mimas';
+        %     elseif isetup == 7  % Pluto
+        %         Ro = 11.88e5;            % outer radius of ice shell (m)
+        %         Ri = Ro-1.0e3;          % inner radius of ice shell (m)
+        %         Rc = Ro-8.5e5;         % core radius (m)
+        %         g = 0.62;        % used to calculate failure, m/s/s
+        %         label = 'Pluto';
     else
         error('not implemented');
     end
     if viscosity_model == 0
-        label = [label '_nimmovisc'];
+        label = [label '-nimmovisc'];
     elseif viscosity_model == 1
-        label = [label '_goldsbykohlstedt'];
+        label = [label '-goldsbykohlstedt'];
     else
         error('not implemented');
     end
@@ -52,7 +95,7 @@ for isetup = 2:2
         % Boundary conditions and internal heating
         H=0; % internal heating rate.
         Tb=270;
-        Ts=100;
+      
         
         % Elastic and Viscous properties
         E = 5e9;        % shear modulus of ice (Pa)
@@ -86,12 +129,12 @@ for isetup = 2:2
         perturbation_period = 1.0e8*seconds_in_year;
         deltaQonQ = 1.0; % fractional perturbation to Q0.
         
-        Qbelow = @(time) 0;
         % calculate maxwell time at 100, 270
         fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100,0)/E,mu(Tb,0)/E);
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
-        t_end = 1e7*seconds_in_year;%  3*perturbation_period;
+        
+        t_end = 1e8*seconds_in_year;%  3*perturbation_period;
         % dt = 1e4*seconds_in_year; % time step in seconds
         dtmax = 1e5*seconds_in_year;
         dtmin = 3600;%*seconds_in_year;
@@ -99,7 +142,7 @@ for isetup = 2:2
         % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
         plot_interval = t_end;
         save_interval = 1e2*seconds_in_year;        
-        save_depths = linspace(0,35000,500);
+        save_depths = linspace(0,max_depth,500);
         
         nsave = ceil(t_end/save_interval) + 1;
         nsave_depths = length(save_depths);
