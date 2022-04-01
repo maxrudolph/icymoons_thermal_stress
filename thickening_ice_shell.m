@@ -2,7 +2,7 @@
 % Max Rudolph, March 19, 2020
 % adapted for other moons by Alyssa Rhoden, 6/2021
 clear;
-% close all;
+close all;
 addpath core; % this is where the helper functions live.
 
 % Numerical parameters
@@ -44,7 +44,7 @@ for isetup = 3:3
         g = 0.279;        % used to calculate failure, m/s/s
         Ts=40;
         
-        Qbelow = @(time) 35e-3; % additional basal heat flux production in W/m^2
+        Qbelow = @(time) 3e-3; % additional basal heat flux production in W/m^2
         relaxation_parameter=1e-2; % used in nonlinear loop.
         
         label = 'Charon';
@@ -244,7 +244,7 @@ for isetup = 3:3
         failure_mask = false(size(grid_r)); % stores whether failure occurred
         failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
         
-        while time < t_end
+        while time < t_end && (grid_r(1)-z_last > Rc)
             % In each timestep, we do the following
             % 1. Calculate the amount of basal freeze-on and advance the mesh
             % 2. Solve the heat equation using an implicit method
