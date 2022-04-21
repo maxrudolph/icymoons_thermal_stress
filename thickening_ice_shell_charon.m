@@ -1,6 +1,5 @@
 % Script to solve coupled ice shell thermal and stress evolution
 % Max Rudolph, March 19, 2020
-% adapted for other moons by Alyssa Rhoden, 6/2021
 clear;
 close all;
 addpath core; % this is where the helper functions live.
@@ -21,65 +20,31 @@ for isetup = 3:3
         Rc = Ro-1.3e5;         % core radius (m)
         g = 1.3;        % used to calculate failure, m/s/s
         relaxation_parameter=1e-4; % used in nonlinear loop.
-        Ts=100;
-        Qbelow = @(time) 0.0; % additional basal heat flux production in W/m^2
-        max_depth = 3.5e4;
+
         label = 'Europa';
-    elseif isetup == 2    % Enceladus
+    elseif isetup == 2  % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
         Ri = Ro-1.0e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
-        max_depth = 3.5e4;
-        Ts=100;
-        Qbelow = @(time) 0.0; % additional basal heat flux production in W/m^2
         relaxation_parameter=1e-3; % used in nonlinear loop.
 
         label = 'Enceladus';
-    elseif isetup == 3  % Charon
-        Ro = 6.06e5;            % outer radius of ice shell (m)
-        Ri = Ro-15.0e3;          % inner radius of ice shell (m)
-        Rc = Ro-2.30e5;         % core radius (m)
-        max_depth = Ro-Rc;
-        g = 0.279;      % used to calculate failure, m/s/s
-        Ts=40;
         
-        Qbelow = @(time) 3e-3; % additional basal heat flux production in W/m^2
-        relaxation_parameter=1e-2; % used in nonlinear loop.
-        
-        label = 'Charon';
-        
-        %     elseif isetup == 4  % Tethys
-        %         Ro = 5.33e5;            % outer radius of ice shell (m)
-        %         Ri = Ro-1.0e3;          % inner radius of ice shell (m)
-        %         Rc = Ro-1.45e5;         % core radius (m)
-        %         g = 0.145;        % used to calculate failure, m/s/s
-        %         label = 'Tethys';
-        %     elseif isetup == 5  % Dione
-        %         Ro = 5.61e5;            % outer radius of ice shell (m)
-        %         Ri = Ro-20.0e3;          % inner radius of ice shell (m)
-        %         Rc = Ro-3.33e5;         % core radius (m)
-        %         g = 0.232;        % used to calculate failure, m/s/s
-        %         label = 'Dione';
-        %     elseif isetup == 6  % Mimas
-        %         Ro = 1.98e5;            % outer radius of ice shell (m)
-        %         Ri = Ro-30.0e3;          % inner radius of ice shell (m)
-        %         Rc = Ro-1.27e5;         % core radius (m)
-        %         g = 0.06;        % used to calculate failure, m/s/s
-        %         label = 'Mimas';
-        %     elseif isetup == 7  % Pluto
-        %         Ro = 11.88e5;            % outer radius of ice shell (m)
-        %         Ri = Ro-1.0e3;          % inner radius of ice shell (m)
-        %         Rc = Ro-8.5e5;         % core radius (m)
-        %         g = 0.62;        % used to calculate failure, m/s/s
-        %         label = 'Pluto';
+    elseif isetup == 3 % Charon
+        Ro = 6.06e5;
+        Rc = 3.76e5;
+        Ri = Ro-1.0e3;
+        g = 0.279;
+        relaxation_parameter = 1e-3;
+        label='Charon';
     else
         error('not implemented');
     end
     if viscosity_model == 0
-        label = [label '-nimmovisc'];
+        label = [label '_nimmovisc'];
     elseif viscosity_model == 1
-        label = [label '-goldsbykohlstedt'];
+        label = [label '_goldsbykohlstedt'];
     else
         error('not implemented');
     end
@@ -95,7 +60,7 @@ for isetup = 3:3
         % Boundary conditions and internal heating
         H=0; % internal heating rate.
         Tb=270;
-      
+        Ts=40;
         
         % Elastic and Viscous properties
         E = 5e9;        % shear modulus of ice (Pa)
@@ -105,7 +70,7 @@ for isetup = 3:3
         rho_i=900;      % density of ice (kg/m^3)
         rho_w=1000;     % density of water (kg/m^3)
         Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
-        mub=1e14;       % basal viscosity (Pa-s)
+        mub=1e15;       % basal viscosity (Pa-s)
         if viscosity_model == 0
             mu = @(T,stress) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
         elseif viscosity_model == 1
@@ -129,20 +94,20 @@ for isetup = 3:3
         perturbation_period = 1.0e8*seconds_in_year;
         deltaQonQ = 1.0; % fractional perturbation to Q0.
         
+        Qbelow = @(time) 0;
         % calculate maxwell time at 100, 270
         fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100,0)/E,mu(Tb,0)/E);
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
-        
-        t_end = 1e9*seconds_in_year;%  3*perturbation_period;
+        t_end = 1e7*seconds_in_year;%  3*perturbation_period;
         % dt = 1e4*seconds_in_year; % time step in seconds
-        dtmax = 1e6*seconds_in_year;
+        dtmax = 1e4*seconds_in_year;
         dtmin = 3600;%*seconds_in_year;
         % dt1 = 3600; % size of first timestep
         % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
         plot_interval = t_end;
-        save_interval = 1e4*seconds_in_year;        
-        save_depths = linspace(0,max_depth,500);
+        save_interval = 1e2*seconds_in_year;        
+        save_depths = linspace(0,35000,500);
         
         nsave = ceil(t_end/save_interval) + 1;
         nsave_depths = length(save_depths);
@@ -155,6 +120,7 @@ for isetup = 3:3
         results.sigma_t = NaN*zeros(nsave_depths,nsave);
         results.sigma_r = NaN*zeros(nsave_depths,nsave);
         results.Pex = zeros(nsave,1);
+        results.Pex_crit = zeros(nsave,1);
         results.dTdr = zeros(nsave_depths,nsave);
         results.T = zeros(nsave_depths,nsave);
         results.ur = zeros(nsave_depths,nsave);
@@ -244,7 +210,7 @@ for isetup = 3:3
         failure_mask = false(size(grid_r)); % stores whether failure occurred
         failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
         
-        while time < t_end && (Ri-z_last > Rc)
+        while time < t_end
             % In each timestep, we do the following
             % 1. Calculate the amount of basal freeze-on and advance the mesh
             % 2. Solve the heat equation using an implicit method
@@ -279,11 +245,6 @@ for isetup = 3:3
             z = z_last + delta_rb;
             dzdt = delta_rb/dt;
             
-            if (Ri-z-delta_rb <= Rc)
-                % code seems to get very unstable when the ocean is too
-                % thin...
-                break
-            end
             % calculate new ocean pressure (Manga and Wang 2007, equation 5)
             Pex_pred = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
             
@@ -429,7 +390,7 @@ for isetup = 3:3
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
                 
                 % check for convergence
-                if abs( Pex_post-Pex )/abs(Pex) < 1e-2 || abs(Pex_post-Pex) < 1e2
+                if abs( Pex_post-Pex )/abs(Pex) < 1e-3 || abs(Pex_post-Pex) < 1e2
                     fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                     converged = true;
                 elseif iter==maxiter
@@ -603,6 +564,7 @@ for isetup = 3:3
                 results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
                 results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                 results.Pex(isave) = Pex;
+                results.Pex_crit(isave) = Pex_crit;
                 last_store = time; isave = isave+1;
             end
         end
@@ -634,7 +596,7 @@ for isetup = 3:3
         contourf(results.time(mask)/seconds_in_year,save_depths/1000,results.sigma_t(:,mask),64,'Color','none'); %shading flat;
         hold on
         plot(results.time(mask)/seconds_in_year,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
-%         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
+        set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
         set(gca,'YDir','reverse');
         ax1 = gca();
         ax1.FontSize=8;
@@ -651,6 +613,7 @@ for isetup = 3:3
         end
         nexttile
         plot(results.time(mask)/seconds_in_year,results.Pex(mask));
+        plot(results.time(mask)/seconds_in_year,results.Pex_crit(mask));
         ylabel('P_{ex} (Pa)');
         set(gca,'XScale','log');
         ax2 = gca();
