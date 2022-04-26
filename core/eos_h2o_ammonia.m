@@ -2,7 +2,7 @@
 p=1.;
 
 n=30;
-for i=1:n+1;
+for i=1:n+1
     x=0.3*(i-1)/n;
     [tm]=melting(x);
     [rho]=density(x,p,tm);

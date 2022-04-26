@@ -46,6 +46,8 @@ for isetup = 3:3
         
         Qbelow = @(time) 3e-3; % additional basal heat flux production in W/m^2
         relaxation_parameter=1e-2; % used in nonlinear loop.
+        X0 = 0.05; % initial ammonia content.
+        V0 = 4/3*pi*(Ro^3-Ri^3);
         
         label = 'Charon';
         
@@ -240,6 +242,7 @@ for isetup = 3:3
         sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
         time_store(isave) = time;
         last_store = time; isave = isave+1;
+        X = X0;
         
         failure_mask = false(size(grid_r)); % stores whether failure occurred
         failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
@@ -277,6 +280,9 @@ for isetup = 3:3
             % thickening would be dx/dt = qb/(L*rho_i)
             delta_rb = dt*qb_net/Lf/rho_i;
             z = z_last + delta_rb;
+            dV = -4*pi*(Ri-z)^2 * delta_rb;% volume change in this timestep
+            Vlast = 4/3*pi*((Ri-z)^3 - Rc^3);
+            X = X*Vlast/(Vlast+dV);
             dzdt = delta_rb/dt;
             
             if (Ri-z-delta_rb <= Rc)
