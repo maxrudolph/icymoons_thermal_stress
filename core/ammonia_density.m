@@ -1,12 +1,14 @@
 function rho = ammonia_density(X,P,T)
 % density of ammonia-water mixtures from EOS in Croft et al. (1988)
 % X mass fraction ammonia
-% P pressure [bar]
+% P pressure [kbar]
+P = P/1e8;% convert pressure from kbar to Pa (1 kbar = 10^8 Pa)
 % T temperature [Kelvin]
-% ko bulk modulus [kbar I think]
+% ko bulk modulus [kbar]
 % ko d(ko)/dP unitless
 
-[tm]=melting(X);
+
+[tm]=ammonia_melting(X);
 
 % calculate bulk moduli and derivatives
 konh3=48.503*exp(-1.0134e-3*T^1.3067); % equation 4a
@@ -26,5 +28,7 @@ rhor=0.9991-0.4336*X+0.3303*X^2+0.2833*X^3-1.9716*X^4+2.1396*X^5-0.7294*X^6; % e
 rho0=rhor*exp(a1*(T-288.15))+0.5*a2*((T-tm)^2-(288.15-tm)^2)+(a3/3.0)*((T-tm)^3-(288.15-tm)^3); % euqation 2a
 
 rho=rho0*((kop*P/ko)+1.0)^(1.0/kop); % eqiation (1)
+
+rho = rho*1000.0;% convert g/cc -> kg/m^3
 end
 

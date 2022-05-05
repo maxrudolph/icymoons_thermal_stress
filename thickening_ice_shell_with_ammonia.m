@@ -38,7 +38,7 @@ for isetup = 3:3
         label = 'Enceladus';
     elseif isetup == 3  % Charon
         Ro = 6.06e5;            % outer radius of ice shell (m)
-        Ri = Ro-15.0e3;          % inner radius of ice shell (m)
+        Ri = Ro-2.0e3;          % inner radius of ice shell (m)
         Rc = Ro-2.30e5;         % core radius (m)
         max_depth = Ro-Rc;
         g = 0.279;      % used to calculate failure, m/s/s
@@ -96,8 +96,7 @@ for isetup = 3:3
         R=8.314e-3;     % in kJ/mol/K
         % Boundary conditions and internal heating
         H=0; % internal heating rate.
-        Tb=270;
-      
+        Tb = ammonia_melting(X0);              
         
         % Elastic and Viscous properties
         E = 5e9;        % shear modulus of ice (Pa)
@@ -121,12 +120,12 @@ for isetup = 3:3
         Cp = 2100; %heat capacity of ice J/kg/K
         Lf = 334*1000; % latent heat of fusion (J/kg)
         kappa = 1e-6;% m/s/s
-%         k=kappa*rho_i*Cp;
+        %k=kappa*rho_i*Cp;
         k = @(T) 651./T;
         %
         % Basal heating model - depends on thickness and transport properties
         %
-%         Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
+        %Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
         [Q0,T,q] = find_steady_T(Ri,Ro,Tb,Ts,linspace(Ri,Ro,nr));
         perturbation_period = 1.0e8*seconds_in_year;
         deltaQonQ = 1.0; % fractional perturbation to Q0.
@@ -136,7 +135,7 @@ for isetup = 3:3
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
         
-        t_end = 1e9*seconds_in_year;%  3*perturbation_period;
+        t_end = 1e7*seconds_in_year;%  3*perturbation_period;
         % dt = 1e4*seconds_in_year; % time step in seconds
         dtmax = 1e6*seconds_in_year;
         dtmin = 3600;%*seconds_in_year;
@@ -159,6 +158,7 @@ for isetup = 3:3
         results.Pex = zeros(nsave,1);
         results.dTdr = zeros(nsave_depths,nsave);
         results.T = zeros(nsave_depths,nsave);
+        results.Tb = zeros(nsave,1);
         results.ur = zeros(nsave_depths,nsave);
         results.failure_time = zeros(1,nsave);
         results.failure_P = zeros(1,nsave);
@@ -275,14 +275,36 @@ for isetup = 3:3
                 dt = dtmin;
             end
             
+            % compute the derivative of Tm with respect to X
+            Xp = X + 1e-6;
+            Xm = X - 1e-6;
+            if Xm < 0
+                Xm = 0;
+            end           
+            dTmdX = (ammonia_melting(Xp)-ammonia_melting(Xm))/(Xp-Xm);
+            Vlast = 4/3*pi*((Ri-z_last)^3 - Rc^3); % compute current ocean volume
+            Alast = 4*pi*(Ri-z_last)^2;
+            % change in ocean internal energy per unit thickness per unit area
+            % (m)*(kg/m^3)*(J/kg/K) = J/m^2/K
+            dUdTm = Vlast/Alast * rho_w *ammonia_cp(X); 
+            % change in ammonia content per unit thickening
+            % (m)^2/(m^3) -> 1/m
+            dXdz = -4*pi*(Ri-z_last)^2*X/Vlast; % note that dX/dz = X0*V0/(V0+dV)^2. The expression used here is a 1st order approximation.
+            % compute an effective latent heat that accounts for heat
+            % added/removed from ocean to maintain Tm at base.
+            L_eff = dUdTm * dTmdX * dXdz;% J/m^2/K * K * 1/m =>  J/m^3           
+            
             qb_net = qb - Qbelow(time+dt);
             
             % thickening would be dx/dt = qb/(L*rho_i)
-            delta_rb = dt*qb_net/Lf/rho_i;
+            delta_rb = dt*qb_net/(Lf*rho_i + L_eff);% s * W/(J/kg/K * kg/m^3 + J/m^3)
             z = z_last + delta_rb;
-            dV = -4*pi*(Ri-z)^2 * delta_rb;% volume change in this timestep
-            Vlast = 4/3*pi*((Ri-z)^3 - Rc^3);
-            X = X*Vlast/(Vlast+dV);
+            dV = -4*pi*(Ri-z)^2*delta_rb;% volume change per unit change in thickness
+            X = X*Vlast/(Vlast+dV); % update nh3 content (assumes no nh3 in ice)
+            % compute the melting temperature for the new NH3 content at
+            % the ocean-ice interface:            
+            Tmelt = ammonia_melting(X);
+            Tb = Tmelt;
             dzdt = delta_rb/dt;
             
             if (Ri-z-delta_rb <= Rc)
@@ -320,6 +342,7 @@ for isetup = 3:3
                 else
                     Pex = Pex_last;
                 end
+
                 Pex_crit = (rho_w-rho_i)*(Ro-(Ri-z))*g;
 
                 % calculate viscosity at each node
@@ -397,9 +420,7 @@ for isetup = 3:3
                    erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
                    erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
                 end
-                
-                
-                
+
                 % 5. Calculate the strains
                 dT = T-T_last;
                 dr1 = grid_r(2)-grid_r(1);
@@ -608,6 +629,7 @@ for isetup = 3:3
                 results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
                 results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
                 results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
+                results.Tb(isave) = Tb;
                 results.Pex(isave) = Pex;
                 last_store = time; isave = isave+1;
             end
@@ -633,8 +655,8 @@ for isetup = 3:3
         %% Pseudocolor stress plot
         figure();
         t=tiledlayout(3,1,'TileSpacing','none','Padding','none');
-        t.Units = 'centimeters';
-        t.OuterPosition = [1 1 9.5 9];
+%         t.Units = 'centimeters';
+%         t.OuterPosition = [1 1 9.5 9];
         nexttile
         
         contourf(results.time(mask)/seconds_in_year,save_depths/1000,results.sigma_t(:,mask),64,'Color','none'); %shading flat;
@@ -687,11 +709,11 @@ for isetup = 3:3
         ax3.FontSize=8;
         text(0.025,0.85,char('C'+(isetup-1)*3),'FontSize',8,'Units','normalized');
 
-        fig = gcf();
-        fig.PaperUnits = 'centimeters';
-        fig.PaperPosition(3) = 6.00;
-        fig.Color = 'w';
-        exportgraphics(gcf,[label '_thickening.eps'],'ContentType','vector');
+%         fig = gcf();
+%         fig.PaperUnits = 'centimeters';
+%         fig.PaperPosition(3) = 6.00;
+%         fig.Color = 'w';
+%         exportgraphics(gcf,[label '_thickening.eps'],'ContentType','vector');
         
         %% Make a figure showing tensile stress at the time of failure
         figure();
