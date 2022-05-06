@@ -114,7 +114,7 @@ for isetup = 3:3
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
         
-        t_end = 1e7*seconds_in_year;%  3*perturbation_period;
+        t_end = 5e7*seconds_in_year;%  3*perturbation_period;
         % dt = 1e4*seconds_in_year; % time step in seconds
         dtmax = 1e6*seconds_in_year;
         dtmin = 3600;%*seconds_in_year;
