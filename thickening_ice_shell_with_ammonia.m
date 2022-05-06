@@ -15,28 +15,7 @@ for isetup = 3:3
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
     
-    if isetup == 1      % Europa
-        Ro = 1.561e6;          % outer radius of ice shell (m)
-        Ri = Ro-1e3;         % inner radius of ice shell (m)
-        Rc = Ro-1.3e5;         % core radius (m)
-        g = 1.3;        % used to calculate failure, m/s/s
-        relaxation_parameter=1e-4; % used in nonlinear loop.
-        Ts=100;
-        Qbelow = @(time) 0.0; % additional basal heat flux production in W/m^2
-        max_depth = 3.5e4;
-        label = 'Europa';
-    elseif isetup == 2    % Enceladus
-        Ro = 2.52e5;            % outer radius of ice shell (m)
-        Ri = Ro-1.0e3;          % inner radius of ice shell (m)
-        Rc = Ro-1.60e5;         % core radius (m)
-        g = 0.113;        % used to calculate failure, m/s/s
-        max_depth = 3.5e4;
-        Ts=100;
-        Qbelow = @(time) 0.0; % additional basal heat flux production in W/m^2
-        relaxation_parameter=1e-3; % used in nonlinear loop.
-
-        label = 'Enceladus';
-    elseif isetup == 3  % Charon
+    if isetup == 3  % Charon
         Ro = 6.06e5;            % outer radius of ice shell (m)
         Ri = Ro-2.0e3;          % inner radius of ice shell (m)
         Rc = Ro-2.30e5;         % core radius (m)
@@ -46,7 +25,7 @@ for isetup = 3:3
         
         Qbelow = @(time) 3e-3; % additional basal heat flux production in W/m^2
         relaxation_parameter=1e-2; % used in nonlinear loop.
-        X0 = 0.05; % initial ammonia content.
+        X0 = 0.06; % initial ammonia content.
         V0 = 4/3*pi*(Ro^3-Ri^3);
         
         label = 'Charon';
@@ -343,7 +322,12 @@ for isetup = 3:3
                     Pex = Pex_last;
                 end
 
-                Pex_crit = (rho_w-rho_i)*(Ro-(Ri-z))*g;
+                % compute height to which water would rise
+                [ptmp,Ttmp,ztmp,rhotmp] = ammonia_adiabatic_profile(X,g*rho_i*(grid_r(end)-grid_r(1)),g);
+                rhobar = cumtrapz(ztmp,rhotmp);
+                rhobar = 1/(ztmp(end)-ztmp(1))*rhobar(end);
+                
+                Pex_crit = (rhobar-rho_i)*(Ro-(Ri-z))*g;
 
                 % calculate viscosity at each node
                 visc_converged = false;
@@ -540,12 +524,16 @@ for isetup = 3:3
                 results.failure_time(ifail) = time/seconds_in_year/1e6;
                 results.failure_P(ifail) = Pex;
                 results.failure_Pex_crit(ifail) = Pex_crit;
-
+                
                 results.failure_top(ifail) = min_depth;
                 results.failure_bottom(ifail) = max_depth;
                 results.failure_sigma_t{ifail} = sigma_t;
                 results.failure_sigma_r{ifail} = sigma_r;
                 results.failure_r{ifail} = grid_r;
+                
+                
+                results.failure_z(ifail) = ztmp(end);
+                
                 ifail = ifail + 1;
                 now_failing = depth >= min_depth & depth <= max_depth;
                 failure_mask = failure_mask | now_failing;
@@ -690,7 +678,9 @@ for isetup = 3:3
         end_color = [0 0.9 0];
         plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
         text(0.025,0.85,char('B'+(isetup-1)*2),'FontSize',8,'Units','normalized');
-
+        plot(results.failure_time(1:ifail-1)*1e6,results.failure_Pex_crit(1:ifail-1),'b--');
+        
+        
         xlabel('Time (years)');
         nexttile
         hold on;
