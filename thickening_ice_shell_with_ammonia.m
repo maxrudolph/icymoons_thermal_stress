@@ -12,8 +12,8 @@ failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 
 nammonia = 5;
-nthick = 5;
-initial_ammonia = linspace(0,.1,nammonia);
+nthick = 3;
+initial_ammonia = linspace(0,.2,nammonia);
 thicknesses = linspace(2000,20000,nthick);
 
 for iAmmonia = 1:nammonia
@@ -713,7 +713,7 @@ for iAmmonia = 1:nammonia
                          fig.PaperUnits = 'centimeters';
                          fig.PaperPosition(3) = 6.00;
                          fig.Color = 'w';
-                         filename = sprintf('%s_thickening_nh3%f_h0%f.eps',label,initial_ammonia(iAmmonia),...
+                         filename = sprintf('%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
                                         thicknesses(ithick));
                          exportgraphics(gcf,filename,'ContentType','vector');
                 
