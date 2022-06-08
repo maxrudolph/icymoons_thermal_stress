@@ -2,7 +2,7 @@ function rho = ammonia_density(X,P,T)
 % density of ammonia-water mixtures from EOS in Croft et al. (1988)
 % X mass fraction ammonia
 % P pressure [kbar]
-P = P/1e8;% convert pressure from kbar to Pa (1 kbar = 10^8 Pa)
+P = P/1e8;% convert pressure from Pa->kbar (1 kbar = 10^8 Pa)
 % T temperature [Kelvin]
 % ko bulk modulus [kbar]
 % ko d(ko)/dP unitless
