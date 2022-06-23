@@ -31,12 +31,12 @@ for iAmmonia = 1:nammonia
                 Rc = Ro-2.30e5;         % core radius (m)
                 max_depth = Ro-Rc;
                 g = 0.279;      % used to calculate failure, m/s/s
-                Ts=40;
+                Ts=40; % Surface temperature (K)
                 
-                Qbelow = @(time) 0*3e-3; % additional basal heat flux production in W/m^2
+                Qbelow = @(time) 3e-3; % additional basal heat flux production in W/m^2
                 relaxation_parameter=1e-2; % used in nonlinear loop.
                 X0 = initial_ammonia(iAmmonia); % initial ammonia content.
-                V0 = 4/3*pi*(Ro^3-Ri^3);
+                %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
                 
                 label = 'Charon';
                 
@@ -87,7 +87,7 @@ for iAmmonia = 1:nammonia
                 H=0; % internal heating rate.
                 Tb = ammonia_melting(X0);
                 
-                % Elastic and Viscous properties
+                % Elastic and Viscous properties of the ice shell
                 E = 5e9;        % shear modulus of ice (Pa)
                 nu = 0.3;       % Poisson ratio of ice (-)
                 beta_w = 4e-10; % Compressibility of water (1/Pa)
@@ -95,7 +95,7 @@ for iAmmonia = 1:nammonia
                 rho_i=917;      % density of ice (kg/m^3)
                 rho_w=1000;     % density of water (kg/m^3)
                 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
-                mub=1e14;       % basal viscosity (Pa-s)
+                mub=1e14;       % basal (273K) viscosity (Pa-s)
                 if viscosity_model == 0
                     mu = @(T,stress) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
                 elseif viscosity_model == 1
@@ -116,8 +116,8 @@ for iAmmonia = 1:nammonia
                 %
                 %Q0 = k*(Tb-Ts)/(Ro-Ri);% time-averaged basal heat flux
                 [Q0,T,q] = find_steady_T(Ri,Ro,Tb,Ts,linspace(Ri,Ro,nr));
-                perturbation_period = 1.0e8*seconds_in_year;
-                deltaQonQ = 1.0; % fractional perturbation to Q0.
+                %perturbation_period = 1.0e8*seconds_in_year;
+                %deltaQonQ = 1.0; % fractional perturbation to Q0.
                 
                 % calculate maxwell time at 100, 270
                 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100,0)/E,mu(Tb,0)/E);
@@ -145,6 +145,7 @@ for iAmmonia = 1:nammonia
                 results.sigma_t = NaN*zeros(nsave_depths,nsave);
                 results.sigma_r = NaN*zeros(nsave_depths,nsave);
                 results.Pex = zeros(nsave,1);
+                results.XNH3 = zeros(nsave,1);
                 results.dTdr = zeros(nsave_depths,nsave);
                 results.T = zeros(nsave_depths,nsave);
                 results.Tb = zeros(nsave,1);
@@ -156,9 +157,9 @@ for iAmmonia = 1:nammonia
                 results.failure_thickness = zeros(1,nsave);
                 results.failure_top = zeros(1,nsave);
                 results.failure_bottom = zeros(1,nsave);
-                results.failure_erupted_volume = zeros(1,nsave);
-                results.failure_erupted_volume_pressurechange = zeros(1,nsave);
-                results.failure_erupted_volume_volumechange = zeros(1,nsave);
+                results.failure_erupted_volume = NaN*zeros(1,nsave);
+                results.failure_erupted_volume_pressurechange = NaN*zeros(1,nsave);
+                results.failure_erupted_volume_volumechange = NaN*zeros(1,nsave);
                 erupted_volume = 0;
                 erupted_volume_pressurechange = 0;
                 erupted_volume_volumechange = 0;
@@ -557,11 +558,11 @@ for iAmmonia = 1:nammonia
                             results.failure_dP(ifail-1) = Pex-results.failure_P(ifail-1);
                         end
                         if all(failure_mask) && any(failure_mask(no_longer_failing))
-                            if erupted_volume > 0
+                            %if erupted_volume > 0
                                 results.failure_erupted_volume(ifail-1) = erupted_volume;
                                 results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
                                 results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
-                            end
+                            %end
                             erupted_volume = 0;
                             erupted_volume_volumechange = 0;
                             erupted_volume_pressurechange = 0;
@@ -629,6 +630,7 @@ for iAmmonia = 1:nammonia
                         results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                         results.Tb(isave) = Tb;
                         results.Pex(isave) = Pex;
+                        results.XNH3(isave) = X;
                         last_store = time; isave = isave+1;
                     end
                 end
@@ -652,7 +654,7 @@ for iAmmonia = 1:nammonia
                 
                 %% Pseudocolor stress plot
                 figure();
-                t=tiledlayout(3,1,'TileSpacing','none','Padding','none');
+                t=tiledlayout(4,1,'TileSpacing','none','Padding','none');
                 %         t.Units = 'centimeters';
                 %         t.OuterPosition = [1 1 9.5 9];
                 nexttile
@@ -666,7 +668,7 @@ for iAmmonia = 1:nammonia
                 ax1.FontSize=8;
                 hcb = colorbar();
                 hcb.Label.String = 'Tensile Stress (Pa)';
-                text(0.025,0.85,char('A'+(isetup-1)*2),'FontSize',8,'Units','normalized');
+                text(0.025,0.85,char('A'),'FontSize',8,'Units','normalized');
                 xlabel('Time (years)');
                 title(label);
                 ylabel('Depth (km)');
@@ -687,7 +689,7 @@ for iAmmonia = 1:nammonia
                 plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1),'r.');
                 end_color = [0 0.9 0];
                 plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
-                text(0.025,0.85,char('B'+(isetup-1)*2),'FontSize',8,'Units','normalized');
+                text(0.025,0.85,char('B'),'FontSize',8,'Units','normalized');
                 plot(results.failure_time(1:ifail-1)*1e6,results.failure_Pex_crit(1:ifail-1),'b--');
                 
                 
@@ -695,11 +697,19 @@ for iAmmonia = 1:nammonia
                 nexttile
                 hold on;
                 for i=1:ifail-1
-                    plot(results.failure_time(i)*1e6*[1 1],results.failure_erupted_volume(i)/(4*pi*Ro^2)*[0 1],'b');
+                    if isnan(results.failure_erupted_volume(i))
+                        % plot nothing
+                    else
+                        if results.failure_Pex_crit(i) - results.failure_P(i) > 0 
+                            plot(results.failure_time(i)*1e6*[1 1],[0 1],'b');
+                        else
+                            plot(results.failure_time(i)*1e6*[1 1],[0 1],'b--');
+                        end
+                    end
                     %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_volumechange(i)/(4*pi*Ro^2),'go');
                     %         plot(results.failure_time(i)*1e6,results.failure_erupted_volume_pressurechange(i)/(4*pi*Ro^2),'rx');
                 end
-                ylabel('Erupted vol. (m)');
+                ylabel('Eruption?');
                 xlabel('Time (years)');
                 set(gca,'XScale','log');
                 ax3=gca();
@@ -707,16 +717,26 @@ for iAmmonia = 1:nammonia
                 ax3.Position(3) = ax1.Position(3);
                 ax3.Box = 'on';
                 ax3.FontSize=8;
-                text(0.025,0.85,char('C'+(isetup-1)*3),'FontSize',8,'Units','normalized');
+                text(0.025,0.85,char('C'),'FontSize',8,'Units','normalized');
                 
-                         fig = gcf();
-                         fig.PaperUnits = 'centimeters';
-                         fig.PaperPosition(3) = 6.00;
-                         fig.Color = 'w';
-                         filename = sprintf('%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
-                                        thicknesses(ithick));
-                         exportgraphics(gcf,filename,'ContentType','vector');
+                nexttile;
+                plot(results.time(mask)/seconds_in_year,results.XNH3(mask),'k');
+                set(gca,'XScale','log');
+                ylabel('X_{NH_3}')
+                xlabel('Time (years)');
+                set(gca,'XLim',ax1.XLim);
                 
+                fig = gcf();
+                fig.PaperUnits = 'centimeters';
+                fig.PaperPosition(3) = 6.00;
+                fig.Color = 'w';
+                filename = sprintf('%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
+                    thicknesses(ithick));
+                exportgraphics(gcf,filename,'ContentType','vector');
+                
+                
+                
+                         
 %                 %% Make a figure showing tensile stress at the time of failure
 %                 figure();
 %                 hold on
