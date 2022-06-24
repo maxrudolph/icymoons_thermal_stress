@@ -700,7 +700,7 @@ for iAmmonia = 1:nammonia
                     if isnan(results.failure_erupted_volume(i))
                         % plot nothing
                     else
-                        if results.failure_Pex_crit(i) - results.failure_P(i) > 0 
+                        if results.failure_P(i) - results.failure_Pex_crit(i) > 0 
                             plot(results.failure_time(i)*1e6*[1 1],[0 1],'b');
                         else
                             plot(results.failure_time(i)*1e6*[1 1],[0 1],'b--');
