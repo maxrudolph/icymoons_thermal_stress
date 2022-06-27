@@ -11,9 +11,9 @@ nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 
-nammonia = 5;
+nammonia = 4;
 nthick = 3;
-initial_ammonia = linspace(0,.2,nammonia);
+initial_ammonia = [0.0 0.03 0.06 0.2];%linspace(0,.2,nammonia);
 thicknesses = linspace(2000,20000,nthick);
 
 for iAmmonia = 1:nammonia
