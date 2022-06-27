@@ -91,9 +91,10 @@ for iAmmonia = 1:nammonia
                 E = 5e9;        % shear modulus of ice (Pa)
                 nu = 0.3;       % Poisson ratio of ice (-)
                 beta_w = 4e-10; % Compressibility of water (1/Pa)
-                alpha_l = 3e-5; % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+                alpha_l = 3e-5; % coefficient of linear thermal expansion of ice ( alpha_v/3 ) (1/K)
                 rho_i=917;      % density of ice (kg/m^3)
-                rho_w=1000;     % density of water (kg/m^3)
+%                 rho_w=1000;     % density of water (kg/m^3)
+                rho_w = ammonia_density(X0,rho_i*g*(Ro-Ri),Tb);
                 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
                 mub=1e14;       % basal (273K) viscosity (Pa-s)
                 if viscosity_model == 0
@@ -291,6 +292,10 @@ for iAmmonia = 1:nammonia
                     z = z_last + delta_rb;
                     dV = -4*pi*(Ri-z)^2*delta_rb;% volume change per unit change in thickness
                     X = X*Vlast/(Vlast+dV); % update nh3 content (assumes no nh3 in ice)
+                    % update ocean density
+                    rho_w = ammonia_density(X,rho_i*g*(grid_r(end)-grid_r(1)),Tb);
+                    beta_w = ammonia_compressibility(X,rho_i*g*(grid_r(end)-grid_r(1)),Tb);
+                    
                     % compute the melting temperature for the new NH3 content at
                     % the ocean-ice interface:
                     Tmelt = ammonia_melting(X);
@@ -653,6 +658,7 @@ for iAmmonia = 1:nammonia
                 ylabel('Overpressure (Pa)');
                 
                 %% Pseudocolor stress plot
+                xscale = 'log';               
                 figure();
                 t=tiledlayout(4,1,'TileSpacing','none','Padding','none');
                 %         t.Units = 'centimeters';
@@ -672,7 +678,7 @@ for iAmmonia = 1:nammonia
                 xlabel('Time (years)');
                 title(label);
                 ylabel('Depth (km)');
-                set(gca,'XScale','log');
+                set(gca,'XScale',xscale);
                 hold on;
                 for i=1:ifail-1
                     plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
@@ -680,7 +686,7 @@ for iAmmonia = 1:nammonia
                 nexttile
                 plot(results.time(mask)/seconds_in_year,results.Pex(mask));
                 ylabel('P_{ex} (Pa)');
-                set(gca,'XScale','log');
+                set(gca,'XScale',xscale);
                 ax2 = gca();
                 ax2.Position(3) = ax1.Position(3);
                 ax2.XLim = ax1.XLim;
@@ -711,7 +717,7 @@ for iAmmonia = 1:nammonia
                 end
                 ylabel('Eruption?');
                 xlabel('Time (years)');
-                set(gca,'XScale','log');
+                set(gca,'XScale',xscale);
                 ax3=gca();
                 ax3.XLim = ax1.XLim;
                 ax3.Position(3) = ax1.Position(3);
@@ -721,7 +727,7 @@ for iAmmonia = 1:nammonia
                 
                 nexttile;
                 plot(results.time(mask)/seconds_in_year,results.XNH3(mask),'k');
-                set(gca,'XScale','log');
+                set(gca,'XScale',xscale);
                 ylabel('X_{NH_3}')
                 xlabel('Time (years)');
                 set(gca,'XLim',ax1.XLim);
