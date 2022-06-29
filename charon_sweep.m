@@ -7,8 +7,8 @@ seconds_in_year = 3.1558e7;
 thickness = 2e3;
 X0 = 0.03;
 
-Xs = linspace(0,0.2,11);
-thicknesses = linspace(2e3,20e3,7);
+Xs = linspace(0,0.2,7);
+thicknesses = linspace(2e3,20e3,11);
 
 nthick = length(thicknesses);
 nX = length(Xs);
@@ -29,7 +29,7 @@ for ithick = 1:nthick
         p.relaxation_parameter=1e-2; % used in nonlinear loop.
         p.X0 = Xs(iX);
         p.label = 'Charon';
-        p.t_end = 5e3*seconds_in_year;
+        p.t_end = 5e8*seconds_in_year;
         all_p{ind} = p;
         ind = ind +1;
     end
@@ -40,7 +40,7 @@ parfor i=1:nrun
     results{i} = main_thickening_ice_shell(all_p{i});
 end
 %%
-result = results;
+result = results{1,1};
 figure();
 
 subplot(3,1,1);

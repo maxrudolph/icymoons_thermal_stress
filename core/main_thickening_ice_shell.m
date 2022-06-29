@@ -91,7 +91,7 @@ plot_interval = t_end;
 save_interval = 1e4*seconds_in_year;
 save_depths = linspace(0,max_depth,500);
 
-nsave = ceil(t_end/save_interval) + 1;
+nsave = ceil(t_end/save_interval) + 2;
 nsave_depths = length(save_depths);
 sigma_t_store = zeros(nsave_depths,nsave);
 
@@ -119,6 +119,10 @@ result.failure_erupted_volume_pressurechange = NaN*zeros(1,nsave);
 result.failure_erupted_volume_volumechange = NaN*zeros(1,nsave);
 result.failure_sigma_t = cell(1,nsave);
 result.failure_sigma_r = cell(1,nsave);
+result.failure_r = cell(1,nsave);
+result.failure_z = zeros(1,nsave);
+
+
 erupted_volume = 0;
 erupted_volume_pressurechange = 0;
 erupted_volume_volumechange = 0;
