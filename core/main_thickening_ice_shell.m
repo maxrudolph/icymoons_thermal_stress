@@ -200,7 +200,7 @@ X = X0;
 failure_mask = false(size(grid_r)); % stores whether failure occurred
 failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
 
-while time < t_end && (Ri-z_last > Rc)
+while time < t_end && (Ri-z_last > Rc) && X <= 0.32
     % In each timestep, we do the following
     % 1. Calculate the amount of basal freeze-on and advance the mesh
     % 2. Solve the heat equation using an implicit method
@@ -422,7 +422,9 @@ while time < t_end && (Ri-z_last > Rc)
             fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
             converged = true;
         elseif iter==maxiter
+            errorstring = ['Nonlinear loop failed to converge. ' sprintf('Ri=%f, X0=%f',p.Ri,p.X0)];
             error('Nonlinear loop failed to converge');
+            
         end
         
         pex_store(iter) = Pex;
