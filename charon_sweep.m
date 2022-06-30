@@ -8,7 +8,7 @@ thickness = 2e3;
 X0 = 0.03;
 
 Xs = linspace(0,0.2,7);
-thicknesses = linspace(2e3,20e3,11);
+thicknesses = linspace(2e3,20e3,5);
 
 nthick = length(thicknesses);
 nX = length(Xs);

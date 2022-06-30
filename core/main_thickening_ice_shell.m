@@ -423,7 +423,7 @@ while time < t_end && (Ri-z_last > Rc) && X <= 0.32
             converged = true;
         elseif iter==maxiter
             errorstring = ['Nonlinear loop failed to converge. ' sprintf('Ri=%f, X0=%f',p.Ri,p.X0)];
-            error('Nonlinear loop failed to converge');
+            error(errorstring);%'Nonlinear loop failed to converge');
             
         end
         
