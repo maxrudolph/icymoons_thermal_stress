@@ -7,8 +7,8 @@ seconds_in_year = 3.1558e7;
 thickness = 2e3;
 X0 = 0.03;
 
-Xs = linspace(0,0.2,7);
-thicknesses = linspace(2e3,20e3,5);
+Xs = linspace(0,0.2,7);% 7 works
+thicknesses = linspace(2e3,20e3,9);% 5 works
 
 nthick = length(thicknesses);
 nX = length(Xs);
@@ -30,8 +30,7 @@ for ithick = 1:nthick
         p.X0 = Xs(iX);
         p.label = 'Charon';
         p.t_end = 5e8*seconds_in_year;
-        all_p{ind} = p;
-        ind = ind +1;
+        all_p{ithick,iX} = p;
     end
 end
 
@@ -39,6 +38,55 @@ nrun = nthick*nX;
 parfor i=1:nrun 
     results{i} = main_thickening_ice_shell(all_p{i});
 end
+
+save('charon3.mat');
+
+%% summary plots
+all_cracks_reach_ocean = zeros(size(results));
+all_max_failure_thickness = zeros(size(results));
+all_X0 = zeros(size(results));
+
+nthick = size(results,1);
+nX = size(results,2);
+
+for i=1:length(results(:))
+   result = results{i};
+   all_X0(i) = result.parameters.X0;
+   if isempty(result.failure_erupted_volume) || all(isnan(result.failure_erupted_volume))
+        all_cracks_reach_ocean(i) = 0;
+        all_max_failure_thickness(i) = NaN;
+   else
+       all_cracks_reach_ocean(i) = 1;
+       all_max_failure_thickness(i) = max(result.failure_z( ~isnan(result.failure_erupted_volume) ) );
+   end
+end
+figure();
+imagesc(Xs,thicknesses,all_cracks_reach_ocean);
+colorbar();
+caxis([0 1]);
+xlabel('Initial ammonia content (X_0)');
+ylabel('Initial thickness (km)');
+set(gca,'YDir','normal');
+
+figure();
+imagesc(Xs,thicknesses,all_max_failure_thickness);
+colorbar();
+caxis([0 15000])
+xlabel('Initial ammonia content (X_0)');
+ylabel('Initial thickness (km)');
+set(gca,'YDir','normal');
+
+
+
+figure();
+imagesc(Xs,thicknesses,all_max_failure_thickness);%,10);
+colorbar();
+caxis([0 15000])
+xlabel('Initial ammonia content (X_0)');
+ylabel('Initial thickness (km)');
+set(gca,'YDir','normal');
+
+
 %%
 result = results{1,1};
 figure();
