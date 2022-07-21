@@ -112,7 +112,7 @@ for ithick = [1 nthick]
     for iX = [1 nX]
         
         result = results{ithick,iX}
-        xscale = 'linear';
+        xscale = 'log';
         figure();
         f=gcf();
         f.Position(3:4) = [945 890];
