@@ -10,13 +10,13 @@ Xs = [0 0.03 0.1]
 thicknesses = linspace(2e3,2e3,1);% 5 works
 % loop for initial thickness
 nthick = length(thicknesses);
-nX = length(Xs);
+nX = 1;%length(Xs);
 % loop for surface temperature
 nTs = 2;
 Ts = [40 60];
 % loop for melting point viscosity
 mubs = [1e13 1e14 1e15];
-nmub = 3;
+nmub = 1;
 
 results = cell( nthick*nX*nTs*nmub,1 );
 ind=1;
