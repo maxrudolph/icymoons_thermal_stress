@@ -45,7 +45,7 @@ for iTs = 1:nTs
     end
 end
 
-nrun = nthick*nX;
+nrun = length(all_p);
 parfor i=1:nrun
     results{i} = main_thickening_ice_shell(all_p{i});
 end
