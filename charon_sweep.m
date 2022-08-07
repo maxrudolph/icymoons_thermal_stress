@@ -38,7 +38,7 @@ for iTs = 1:nTs
                 p.X0 = Xs(iX);
                 p.label = 'Charon';
                 p.t_end = 5e8*seconds_in_year;
-                all_p{ithick,iX} = p;
+                all_p{irun} = p;
                 irun = irun+1;
             end
         end
