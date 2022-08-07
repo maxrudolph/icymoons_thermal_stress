@@ -54,7 +54,7 @@ rho_i=917;      % density of ice (kg/m^3)
 %                 rho_w=1000;     % density of water (kg/m^3)
 rho_w = ammonia_density(X0,rho_i*g*(Ro-Ri),Tb);
 Q=40;           % activation energy, kJ/mol, Nimmo 2004 (kJ/mol)
-mub=1e14;       % basal (273K) viscosity (Pa-s)
+mub=p.mub;       % basal (273K) viscosity (Pa-s)
 if viscosity_model == 0
     mu = @(T,stress) mub*exp(Q*(Tb-T)/R/Tb./T); % function to evaluate viscosity in Pa-s given T
 elseif viscosity_model == 1
