@@ -6,13 +6,14 @@ seconds_in_year = 3.1558e7;
 
 % Xs = linspace(0.03,0.1,2);% 0-0.2, 7 works
 Xs = [0 0.03 0.1]
+nX = length(Xs);
 
 thicknesses = linspace(2e3,2e3,1);% 5 works
 % loop for initial thickness
 nthick = length(thicknesses);
-nX = 1;%length(Xs);
+
 % loop for surface temperature
-nTs = 1;
+nTs = 2;
 Ts = [40 60];
 % loop for melting point viscosity
 mubs = [1e13 1e14 1e15];
@@ -44,7 +45,7 @@ for iTs = 1:nTs
         end
     end
 end
-
+%%
 nrun = length(all_p);
 for i=1:nrun
     results{i} = main_thickening_ice_shell(all_p{i});
