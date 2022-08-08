@@ -12,11 +12,11 @@ thicknesses = linspace(2e3,2e3,1);% 5 works
 nthick = length(thicknesses);
 nX = 1;%length(Xs);
 % loop for surface temperature
-nTs = 2;
+nTs = 1;
 Ts = [40 60];
 % loop for melting point viscosity
 mubs = [1e13 1e14 1e15];
-nmub = 1;
+nmub = 3;
 
 results = cell( nthick*nX*nTs*nmub,1 );
 ind=1;
@@ -34,7 +34,7 @@ for iTs = 1:nTs
                 p.Ts=Ts(iTs); % Surface temperature (K)
                 p.mub = mubs(imub);
                 p.Qbelow = @(time) 0*3e-3; % additional basal heat flux production in W/m^2
-                p.relaxation_parameter=1e-2; % used in nonlinear loop.
+                p.relaxation_parameter=1e-4; % used in nonlinear loop.
                 p.X0 = Xs(iX);
                 p.label = 'Charon';
                 p.t_end = 5e8*seconds_in_year;
@@ -46,7 +46,7 @@ for iTs = 1:nTs
 end
 
 nrun = length(all_p);
-parfor i=1:nrun
+for i=1:nrun
     results{i} = main_thickening_ice_shell(all_p{i});
 end
 

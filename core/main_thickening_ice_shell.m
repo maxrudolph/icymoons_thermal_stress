@@ -36,7 +36,7 @@ end
 
 ifail = 1; % index into list of times at which failure occurred.
 
-maxiter=1000;
+maxiter=10000;
 % Define physical constants and parameters
 % Physical constants
 seconds_in_year = 3.1558e7;
@@ -291,7 +291,7 @@ while time < t_end && (Ri-z_last > Rc) && X <= 0.32
     pex_store = zeros(maxiter,1);
     pexpost_store = zeros(maxiter,1);
     for iter=1:maxiter
-        if iter>10
+        if iter>10 && iter < 100
             [tmp,ind] = unique(pex_store(1:iter-1));
             Pex = interp1(pexpost_store(ind)-pex_store(ind),pex_store(ind),0,'linear','extrap');
         elseif iter>1
