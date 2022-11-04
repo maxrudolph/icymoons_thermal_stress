@@ -61,7 +61,7 @@ elseif viscosity_model == 1
     mu = @(T,stress) goldsby_kohlstedt(stress,T,viscosity.d,viscosity.P); % Goldsby-Kohlstedt effective viscosity
 end
 % Failure criterion:
-tensile_strength = 3e6; % tensile strength, Pa
+tensile_strength = p.tensile_strength; % tensile strength, Pa
 cohesion = 2e7;  % plastic yield strength
 friction = 0.6; % friction angle for plastic yielding
 % Thermal properties

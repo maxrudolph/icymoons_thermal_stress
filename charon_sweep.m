@@ -33,6 +33,7 @@ for iTs = 1:nTs
                 p.Rc = p.Ro-2.30e5;         % core radius (m)
                 p.g = 0.279;      % used to calculate failure, m/s/s
                 p.Ts=Ts(iTs); % Surface temperature (K)
+                p.tensile_strength = 1e6; %tensile strength in Pa
                 p.mub = mubs(imub);
                 p.Qbelow = @(time) 0*3e-3; % additional basal heat flux production in W/m^2
                 p.relaxation_parameter=1e-4; % used in nonlinear loop.
@@ -51,13 +52,34 @@ parfor i=1:nrun
     results{i} = main_thickening_ice_shell(all_p{i});
 end
 
-save('charon_08042022.mat','-v7.3');
+save('charon_1mpa.mat','-v7.3');
 
 %% summary plots
 all_cracks_reach_ocean = zeros(size(results));
 all_max_failure_thickness = zeros(size(results));
 all_X0 = zeros(size(results));
+for i=1:length(results(:))
+    result = results{i};
+    all_X0(i) = result.parameters.X0;
+    if isempty(result.failure_erupted_volume) || all(isnan(result.failure_erupted_volume))
+        all_cracks_reach_ocean(i) = 0;
+        all_max_failure_thickness(i) = NaN;
+    else
+        all_cracks_reach_ocean(i) = 1;
+        all_max_failure_thickness(i) = max(result.failure_z( ~isnan(result.failure_erupted_volume) ) );
+    end
+end
+% print out a summary table
+for i=1:length(results(:))
+   result = results{i};
+   disp(sprintf("%e\t%e\t%f,\t%.2f\n",result.parameters.mub,result.parameters.X0,result.parameters.Ts,all_max_failure_thickness(i)/1000));
+   
+   
+    
+end
 
+
+%% 
 nthick = size(results,1);
 nX = size(results,2);
 
