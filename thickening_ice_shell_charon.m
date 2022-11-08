@@ -34,7 +34,7 @@ for isetup = 3:3
     elseif isetup == 3 % Charon
         Ro = 6.06e5;
         Rc = 3.76e5;
-        Ri = Ro-1.0e3;
+        Ri = Ro-1.0e5;
         g = 0.279;
         relaxation_parameter = 1e-3;
         label='Charon';
@@ -99,7 +99,7 @@ for isetup = 3:3
         fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100,0)/E,mu(Tb,0)/E);
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
-        t_end = 1e7*seconds_in_year;%  3*perturbation_period;
+        t_end = 1e8*seconds_in_year;%  3*perturbation_period;
         % dt = 1e4*seconds_in_year; % time step in seconds
         dtmax = 1e4*seconds_in_year;
         dtmin = 3600;%*seconds_in_year;
@@ -107,7 +107,7 @@ for isetup = 3:3
         % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
         plot_interval = t_end;
         save_interval = 1e2*seconds_in_year;        
-        save_depths = linspace(0,35000,500);
+        save_depths = linspace(0,Ro-Rc,500);
         
         nsave = ceil(t_end/save_interval) + 1;
         nsave_depths = length(save_depths);
@@ -588,6 +588,7 @@ for isetup = 3:3
         
         %% Pseudocolor stress plot
         figure();
+        xscale = 'log';
         t=tiledlayout(3,1,'TileSpacing','none','Padding','none');
         t.Units = 'centimeters';
         t.OuterPosition = [1 1 9.5 9];
@@ -606,7 +607,7 @@ for isetup = 3:3
         xlabel('Time (years)');
         title(label);
         ylabel('Depth (km)');
-        set(gca,'XScale','log');
+        set(gca,'XScale',xscale);
         hold on;
         for i=1:ifail-1
             plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
@@ -615,7 +616,7 @@ for isetup = 3:3
         plot(results.time(mask)/seconds_in_year,results.Pex(mask));
         plot(results.time(mask)/seconds_in_year,results.Pex_crit(mask));
         ylabel('P_{ex} (Pa)');
-        set(gca,'XScale','log');
+        set(gca,'XScale',xscale);
         ax2 = gca();
         ax2.Position(3) = ax1.Position(3);
         ax2.XLim = ax1.XLim;
@@ -636,7 +637,7 @@ for isetup = 3:3
         end
         ylabel('Erupted vol. (m)');
         xlabel('Time (years)');
-        set(gca,'XScale','log');
+        set(gca,'XScale',xscale);
         ax3=gca();
         ax3.XLim = ax1.XLim;
         ax3.Position(3) = ax1.Position(3);
@@ -648,7 +649,7 @@ for isetup = 3:3
         fig.PaperUnits = 'centimeters';
         fig.PaperPosition(3) = 6.00;
         fig.Color = 'w';
-        exportgraphics(gcf,[label '_thickening.eps'],'ContentType','vector');
+        %exportgraphics(gcf,[label '_thickening.eps'],'ContentType','vector');
         
         %% Make a figure showing tensile stress at the time of failure
         figure();
