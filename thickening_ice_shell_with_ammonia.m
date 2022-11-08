@@ -11,10 +11,10 @@ nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
 
-nammonia = 4;
-nthick = 3;
-initial_ammonia = [0.0 0.03 0.06 0.2];%linspace(0,.2,nammonia);
-thicknesses = linspace(2000,20000,nthick);
+nammonia = 1;
+nthick = 1;
+initial_ammonia = [0.0];% 0.03 0.06 0.2];%linspace(0,.2,nammonia);
+thicknesses = [100e3];%linspace(2000,20000,nthick);
 
 for iAmmonia = 1:nammonia
     for ithick = 1:nthick
@@ -125,9 +125,9 @@ for iAmmonia = 1:nammonia
                 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
                 % set end time and grid resolution
                 
-                t_end = 5e7*seconds_in_year;%  3*perturbation_period;
+                t_end = 1e8*seconds_in_year;%  3*perturbation_period;
                 % dt = 1e4*seconds_in_year; % time step in seconds
-                dtmax = 1e6*seconds_in_year;
+                dtmax = 1e5*seconds_in_year;
                 dtmin = 3600;%*seconds_in_year;
                 % dt1 = 3600; % size of first timestep
                 % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
@@ -146,6 +146,7 @@ for iAmmonia = 1:nammonia
                 results.sigma_t = NaN*zeros(nsave_depths,nsave);
                 results.sigma_r = NaN*zeros(nsave_depths,nsave);
                 results.Pex = zeros(nsave,1);
+                results.Pex_crit = zeros(nsave,1);
                 results.XNH3 = zeros(nsave,1);
                 results.dTdr = zeros(nsave_depths,nsave);
                 results.T = zeros(nsave_depths,nsave);
@@ -635,6 +636,7 @@ for iAmmonia = 1:nammonia
                         results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                         results.Tb(isave) = Tb;
                         results.Pex(isave) = Pex;
+                        results.Pex_crit(isave) = Pex_crit;
                         results.XNH3(isave) = X;
                         last_store = time; isave = isave+1;
                     end
@@ -696,8 +698,8 @@ for iAmmonia = 1:nammonia
                 end_color = [0 0.9 0];
                 plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1)),'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
                 text(0.025,0.85,char('B'),'FontSize',8,'Units','normalized');
-                plot(results.failure_time(1:ifail-1)*1e6,results.failure_Pex_crit(1:ifail-1),'b--');
-                
+%                 plot(results.failure_time(1:ifail-1)*1e6,results.failure_Pex_crit(1:ifail-1),'b--');
+                plot(results.time(mask)/seconds_in_year,results.Pex_crit(mask),'b--');
                 
                 xlabel('Time (years)');
                 nexttile
