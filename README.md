@@ -1,4 +1,4 @@
-# icymoons_thermal_stress
+# PISTES - Planetary Ice Shell Thermal Evolution and Stress
 **This repository contains codes to reproduce the results in:
 Rudolph, M.L., Manga, M., Walker, M., and Rhoden, A.R. (in review). Cooling crusts create concomittant cryovolcanic conduits.**
 
