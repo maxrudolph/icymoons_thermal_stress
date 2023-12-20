@@ -118,7 +118,7 @@ for iAmmonia = 1:nammonia
                 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
                 % set end time and grid resolution
                 
-                t_end = 5e5*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
+                t_end = 1e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
                 % dt = 1e4*seconds_in_year; % time step in seconds
                 dtmax = 4e5*seconds_in_year;
                 dtmin = 3600;%*seconds_in_year;
