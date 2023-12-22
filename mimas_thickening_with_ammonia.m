@@ -42,11 +42,11 @@ for iAmmonia = 1:nammonia
                 Ro = 1.982e5;            % outer radius of ice shell (m)
                 Ri = Ro-thicknesses(ithick);  % (initial) inner radius of ice shell (m)
                 Rc = Ro-1.266e5;         % core radius (m)
-                e0 = 2*0.0196;           % starting eccentricity
+                e0 = 2.5*0.0196;           % starting eccentricity
                 max_depth = Ro-Rc;
                 g = 0.064;      % used to calculate failure, m/s/s
-                Ts=60; % Surface temperature (K)
-                core_type = 1;
+                Ts=80; % Surface temperature (K)
+                core_type = 2; % 1 for rigid core - set Ts to 60K; 2 for fluffy core - set Ts to 80K
                 % constants
                 a_over_GMm = 1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
 
@@ -54,6 +54,7 @@ for iAmmonia = 1:nammonia
                 %Qbelow = @(time) time*(-2.6E-16)+61e-3; % additional basal heat flux production in W/m^2
                 relaxation_parameter=1e-2; % used in nonlinear loop.
                 X0 = initial_ammonia(iAmmonia); % initial ammonia content.
+                reset_stresses = true;
                 %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
                 
                 label = 'Mimas'; 
@@ -97,7 +98,7 @@ for iAmmonia = 1:nammonia
                 end
                 % Failure criterion:
                 tensile_strength = 3e6; % tensile strength, Pa
-                cohesion = 2e7;  % plastic yield strength
+                cohesion = 2e7;  % plastic yield strength, MPa
                 friction = 0.6; % friction angle for plastic yielding
                 % Thermal properties
                 Cp = 2100; %heat capacity of ice J/kg/K
@@ -118,7 +119,7 @@ for iAmmonia = 1:nammonia
                 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
                 % set end time and grid resolution
                 
-                t_end = 1e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
+                t_end = 40e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
                 % dt = 1e4*seconds_in_year; % time step in seconds
                 dtmax = 4e5*seconds_in_year;
                 dtmin = 3600;%*seconds_in_year;
@@ -134,6 +135,7 @@ for iAmmonia = 1:nammonia
                 
                 results.time = zeros(nsave,1);
                 results.eccentricity = zeros(nsave,1); results.eccentricity(1) = e0;
+                results.thickness = zeros(nsave,1); results.thickness(1) = Ro-Ri;
                 results.z = zeros(nsave,1);
                 results.Ri = zeros(nsave,1); results.Ri(1) = Ri;
                 results.qb = zeros(nsave,1);
@@ -365,7 +367,7 @@ for iAmmonia = 1:nammonia
                                     urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
                                     volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
                                 else
-                                    pressure_contribution = 0;
+                                    pressure_contribution = 0;  
                                     volume_contribution = 0;
                                 end
                                 % reset stresses and uplift
@@ -566,6 +568,19 @@ for iAmmonia = 1:nammonia
                     energy_change = tidal_heating*4*pi*(grid_r(1))^2*dt;
                     eccentricity = eccentricity_last - (1-eccentricity_last^2)/eccentricity_last*a_over_GMm*energy_change;
                     
+                    %5.75 consider resetting stresses if ice shell is
+                    %thinning?
+                    if z-z_last < 0 && reset_stresses
+                        sigma_r = 0*sigma_r;
+                        sigma_t = 0*sigma_t;
+                        siiD = 0*siiD;
+                        er = 0*er;
+                        et = 0*et;
+                        ur = 0*ur;
+                        Pex = 0.0;
+                    end
+                    
+                    
                     % 6. advance to next time step and plot (if needed)
                     eccentricity_last = eccentricity;
                     sigma_r_last = sigma_r;
@@ -612,7 +627,8 @@ for iAmmonia = 1:nammonia
                         time_store(isave) = time;
                         
                         results.time(isave) = time;
-                        results.eccentricity(isave) = eccentricity;         
+                        results.eccentricity(isave) = eccentricity;
+                        results.thickness(isave) = grid_r(end)-grid_r(1);
                         results.z(isave) = z;
                         results.Ri(isave) = Ri;
                         results.qb(isave) = total_heating;
@@ -632,7 +648,7 @@ for iAmmonia = 1:nammonia
                 mask = 1:(isave-1);
 
                 %% Pseudocolor stress plot
-                xscale = 'log';               
+                xscale = 'linear';               
                 figure();
                 t=tiledlayout(5,1,'TileSpacing','compact','Padding','none');
                          t.Units = 'centimeters';
@@ -717,7 +733,22 @@ for iAmmonia = 1:nammonia
                 filename = sprintf('%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
                     thicknesses(ithick));
                 exportgraphics(gcf,filename,'ContentType','vector');
-                                                                        
+                %% 
+                figure();
+                plot(results.eccentricity(1:isave-1),results.thickness(1:isave-1)/1e3);
+                set(gca,'XLim',[.001 .05 ],'YLim',[0 70]);
+                set(gca,'XDir','reverse');
+                xlabel('Eccentricity (-)');
+                ylabel('Thickness (km)');
+                filename = sprintf('eccentricity-thickness-%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
+                    thicknesses(ithick));
+                exportgraphics(gcf,filename,'ContentType','vector');
+                
+                %% find shell thickness associated with present eccentricity
+                present_eccentricity = .0196;
+                [~,ind] = min( abs( results.eccentricity-present_eccentricity ));
+                results.thickness(ind)
+                disp(sprintf("Eccentricity %f, thickness %f",results.eccentricity(ind),results.thickness(ind)));
             end
         end
     end
